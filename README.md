@@ -1,7 +1,7 @@
 # Executor Router
 [![Version][npm-image]][npm-url] ![Downloads][downloads-image] [![Build Status][status-image]][status-url] [![Open Issues][issues-image]][issues-url] [![Dependency Status][daviddm-image]][daviddm-url] ![License][license-image]
 
-> A generic executor plugin that routes builds to other executors
+> A generic executor plugin that routes builds to a specified executor
 
 ## Usage
 
