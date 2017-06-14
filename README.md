@@ -25,7 +25,7 @@ Code licensed under the BSD 3-Clause license. See LICENSE file for terms.
 [license-image]: https://img.shields.io/npm/l/screwdriver-executor-router.svg
 [issues-image]: https://img.shields.io/github/issues/screwdriver-cd/executor-router.svg
 [issues-url]: https://github.com/screwdriver-cd/executor-router/issues
-[status-image]: https://cd.screwdriver.cd/pipelines/pipelineid/badge
-[status-url]: https://cd.screwdriver.cd/pipelines/pipelineid
+[status-image]: https://cd.screwdriver.cd/pipelines/202/badge
+[status-url]: https://cd.screwdriver.cd/pipelines/202
 [daviddm-image]: https://david-dm.org/screwdriver-cd/executor-router.svg?theme=shields.io
 [daviddm-url]: https://david-dm.org/screwdriver-cd/executor-router
