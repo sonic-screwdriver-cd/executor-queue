@@ -35,9 +35,13 @@
     "chai": "^3.5.0",
     "eslint": "^3.9.1",
     "eslint-config-screwdriver": "^2.0.9",
-    "jenkins-mocha": "^4.0.0"
+    "jenkins-mocha": "^4.0.0",
+    "mockery": "^2.0.0",
+    "sinon": "^2.3.4"
   },
-  "dependencies": {},
+  "dependencies": {
+    "screwdriver-executor-base": "^5.2.2"
+  },
   "release": {
     "debug": false,
     "verifyConditions": {
