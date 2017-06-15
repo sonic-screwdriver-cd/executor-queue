@@ -16,11 +16,27 @@ describe('index test', () => {
     let fsMock;
     let k8sExecutorMock;
     let exampleExecutorMock;
-    const pluginOptions = {
-        ecosystem: {
-            api: 'http://api.com',
-            store: 'http://store.com'
-        }
+    const ecosystem = {
+        api: 'http://api.com',
+        store: 'http://store.com'
+    };
+    const examplePluginOptions = {
+        example: {
+            host: 'somehost',
+            token: 'sometoken',
+            jobsNamespace: 'somenamespace'
+        },
+        launchVersion: 'someversion',
+        prefix: 'someprefix'
+    };
+    const k8sPluginOptions = {
+        kubernetes: {
+            host: 'K8S_HOST',
+            token: 'K8S_TOKEN',
+            jobsNamespace: 'K8S_JOBS_NAMESPACE'
+        },
+        launchVersion: 'LAUNCH_VERSION',
+        prefix: 'EXECUTOR_PREFIX'
     };
 
     before(() => {
@@ -47,20 +63,21 @@ describe('index test', () => {
 
         mockery.registerMock('fs', fsMock);
         mockery.registerMock('screwdriver-executor-k8s', testExecutor(k8sExecutorMock));
-        mockery.registerMock('my-example-executor', testExecutor(exampleExecutorMock));
+        mockery.registerMock('screwdriver-executor-example', testExecutor(exampleExecutorMock));
 
         // eslint-disable-next-line global-require
         Executor = require('../index');
 
         executor = new Executor({
-            plugins: [
+            ecosystem,
+            executor: [
                 {
-                    name: 'screwdriver-executor-k8s',
-                    options: pluginOptions
+                    name: 'k8s',
+                    options: k8sPluginOptions
                 },
                 {
-                    name: 'my-example-executor',
-                    options: pluginOptions
+                    name: 'example',
+                    options: examplePluginOptions
                 }
             ]
         });
@@ -71,25 +88,170 @@ describe('index test', () => {
     });
 
     describe('construction', () => {
-        it('registers multiple plugins', () => {
-            const executorKubernetes = executor['screwdriver-executor-k8s'];
-            const exampleExecutor = executor['my-example-executor'];
+        let exampleOptions;
+        let k8sOptions;
 
-            assert.deepEqual(executorKubernetes.constructorParams, pluginOptions);
-            assert.deepEqual(exampleExecutor.constructorParams, pluginOptions);
+        beforeEach(() => {
+            exampleOptions = {
+                ecosystem,
+                example: {
+                    host: 'somehost',
+                    token: 'sometoken',
+                    jobsNamespace: 'somenamespace'
+                },
+                launchVersion: 'someversion',
+                prefix: 'someprefix'
+            };
+            k8sOptions = {
+                ecosystem,
+                kubernetes: {
+                    host: 'K8S_HOST',
+                    token: 'K8S_TOKEN',
+                    jobsNamespace: 'K8S_JOBS_NAMESPACE'
+                },
+                launchVersion: 'LAUNCH_VERSION',
+                prefix: 'EXECUTOR_PREFIX'
+            };
+        });
+
+        it('defaults to an empty object when the ecosystem does not exist', () => {
+            executor = new Executor({
+                executor: [{
+                    name: 'k8s',
+                    options: k8sPluginOptions
+                }]
+            });
+
+            const executorKubernetes = executor.k8s;
+
+            k8sOptions.ecosystem = {};
+
+            assert.deepEqual(executorKubernetes.constructorParams, k8sOptions);
+        });
+
+        it('defaults to an empty object when config does not exist', () => {
+            const error = new Error('No executor config passed in.');
+
+            try {
+                executor = new Executor();
+            } catch (err) {
+                assert.deepEqual(err, error);
+
+                return;
+            }
+            assert.fail();
+        });
+
+        it('throws an error when the executor config does not exist', () => {
+            const error = new Error('No executor config passed in.');
+
+            try {
+                executor = new Executor({ ecosystem });
+            } catch (err) {
+                assert.deepEqual(err, error);
+
+                return;
+            }
+            assert.fail();
+        });
+
+        it('throws an error when the executor config is not an array', () => {
+            const error = new Error('No executor config passed in.');
+
+            try {
+                executor = new Executor({
+                    ecosystem,
+                    executor: {
+                        name: 'k8s',
+                        options: k8sPluginOptions
+                    }
+                });
+            } catch (err) {
+                assert.deepEqual(err, error);
+
+                return;
+            }
+            assert.fail();
+        });
+
+        it('throws an error when the executor config is an empty array', () => {
+            const error = new Error('No executor config passed in.');
+
+            try {
+                executor = new Executor({
+                    ecosystem,
+                    executor: []
+                });
+            } catch (err) {
+                assert.deepEqual(err, error);
+
+                return;
+            }
+            assert.fail();
+        });
+
+        it('throws an error when no default executor is set', () => {
+            const error = new Error('No default executor set.');
+
+            try {
+                executor = new Executor({
+                    ecosystem,
+                    executor: [{
+                        name: 'DNE'
+                    },
+                    {
+                        name: 'DNE2',
+                        options: k8sPluginOptions
+                    }]
+                });
+            } catch (err) {
+                assert.strictEqual(err.message, error.message);
+
+                return;
+            }
+            assert.fail();
+        });
+
+        it('does not throw an error when a npm module cannot be registered', () => {
+            try {
+                executor = new Executor({
+                    ecosystem,
+                    executor: [{
+                        name: 'DNE'
+                    },
+                    {
+                        name: 'k8s',
+                        options: k8sPluginOptions
+                    }]
+                });
+            } catch (err) {
+                assert.fail(err, '');
+            }
+        });
+
+        it('registers multiple plugins', () => {
+            const executorKubernetes = executor.k8s;
+            const exampleExecutor = executor.example;
+
+            assert.deepEqual(executorKubernetes.constructorParams, k8sOptions);
+            assert.deepEqual(exampleExecutor.constructorParams, exampleOptions);
         });
 
         it('registers a single plugin', () => {
             executor = new Executor({
-                plugins: {
-                    name: 'screwdriver-executor-k8s',
-                    options: pluginOptions
-                }
+                ecosystem: {
+                    api: 'http://api.com',
+                    store: 'http://store.com'
+                },
+                executor: [{
+                    name: 'k8s',
+                    options: k8sPluginOptions
+                }]
             });
 
-            const executorKubernetes = executor['screwdriver-executor-k8s'];
+            const executorKubernetes = executor.k8s;
 
-            assert.deepEqual(executorKubernetes.constructorParams, pluginOptions);
+            assert.deepEqual(executorKubernetes.constructorParams, k8sOptions);
         });
     });
 
@@ -134,7 +296,7 @@ describe('index test', () => {
 
             return executor.start({
                 annotations: {
-                    'beta.screwdriver.cd/executor': 'my-example-executor'
+                    'beta.screwdriver.cd/executor': 'example'
                 },
                 buildId: 920,
                 container: 'node:4',
