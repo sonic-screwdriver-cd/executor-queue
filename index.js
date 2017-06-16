@@ -1,38 +1,56 @@
 'use strict';
 
-// Key in annotations object that maps to an executor NPM module
-// value is a placeholder until resolution to screwdriver-cd/screwdriver#595
-const ANNOTATION_EXECUTOR_TYPE = 'beta.screwdriver.cd/executor';
+const ANNOTATION_EXECUTOR_TYPE = 'beta.screwdriver.cd/executor'; // Key in annotations object that maps to an executor NPM module
 const Executor = require('screwdriver-executor-base');
 
 class ExecutorRouter extends Executor {
     /**
      * Constructs a router for different Executor strategies.
      * @method constructor
-     * @param  {Object}         options
-     * @param  {Array|String}   options.plugins                Array of plugins to load or a single plugin string
-     * @param  {String}         options.plugins[x].moduleName  Name of the executor NPM module to load
-     * @param  {String}         options.plugins[x].options     Configuration to construct the module with
+     * @param  {Object}         config                      Object with executor and ecosystem
+     * @param  {String}         [config.defaultPlugin]      Optional default executor
+     * @param  {Object}         [config.ecosystem]          Optional object with ecosystem values
+     * @param  {Array|Object}   config.executor             Array of executors to load or a single executor object
+     * @param  {String}         config.executor[x].name     Name of the executor NPM module to load
+     * @param  {String}         config.executor[x].options  Configuration to construct the module with
      */
-    constructor(options = {}) {
+    constructor(config = {}) {
+        const ecosystem = config.ecosystem || {};
+        const executorConfig = config.executor;
+
+        if (!executorConfig || !(Array.isArray(executorConfig)) || executorConfig.length === 0) {
+            throw new Error('No executor config passed in.');
+        }
+
         super();
+        this.defaultExecutor = config.defaultPlugin;
 
-        const plugins = options.plugins;
-        const registrations = (Array.isArray(plugins)) ? plugins : [plugins];
+        executorConfig.forEach((plugin) => {
+            let ExecutorPlugin;
 
-        registrations.forEach((plugin, index) => {
-            // eslint-disable-next-line global-require, import/no-dynamic-require
-            const ExecutorPlugin = require(plugin.name);
+            try {
+                // eslint-disable-next-line global-require, import/no-dynamic-require
+                ExecutorPlugin = require(`screwdriver-executor-${plugin.name}`);
+            } catch (err) {
+                console.error(err);
 
-            const executorPlugin = new ExecutorPlugin(plugin.options);
+                return;
+            }
+
+            const options = Object.assign({ ecosystem }, plugin.options); // Add ecosystem to executor options
+            const executorPlugin = new ExecutorPlugin(options);
 
             // Set the default executor
-            if (index === 0) {
-                this.default_executor = executorPlugin;
+            if (!this.defaultExecutor && !config.defaultPlugin) {
+                this.defaultExecutor = executorPlugin;
             }
 
             this[plugin.name] = executorPlugin;
         });
+
+        if (!this.defaultExecutor) {
+            throw new Error('No default executor set.');
+        }
     }
 
     /**
@@ -49,8 +67,7 @@ class ExecutorRouter extends Executor {
     start(config) {
         const annotations = config.annotations || {};
         const executorType = annotations[ANNOTATION_EXECUTOR_TYPE];
-        // Route to executor specified in annotations or use default executor
-        const executor = this[executorType] || this.default_executor;
+        const executor = this[executorType] || this.defaultExecutor; // Route to executor (based on annotations) or use default executor
 
         return executor.start(config);
     }
