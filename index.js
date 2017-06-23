@@ -17,13 +17,13 @@ class ExecutorRouter extends Executor {
     constructor(config = {}) {
         const ecosystem = config.ecosystem || {};
         const executorConfig = config.executor;
+        const defaultPlugin = config.defaultPlugin;
 
         if (!executorConfig || !(Array.isArray(executorConfig)) || executorConfig.length === 0) {
             throw new Error('No executor config passed in.');
         }
 
         super();
-        this.defaultExecutor = config.defaultPlugin;
 
         executorConfig.forEach((plugin) => {
             let ExecutorPlugin;
@@ -40,8 +40,11 @@ class ExecutorRouter extends Executor {
             const options = Object.assign({ ecosystem }, plugin.options); // Add ecosystem to executor options
             const executorPlugin = new ExecutorPlugin(options);
 
-            // Set the default executor
-            if (!this.defaultExecutor && !config.defaultPlugin) {
+            if (defaultPlugin && defaultPlugin === plugin.name) {
+                // set the default plugin to the desired one
+                this.defaultExecutor = executorPlugin;
+            } else if (!defaultPlugin && !this.defaultExecutor) {
+                // When given no default plugin, use the first module we instantiated
                 this.defaultExecutor = executorPlugin;
             }
 

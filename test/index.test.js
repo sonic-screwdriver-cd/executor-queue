@@ -256,6 +256,33 @@ describe('index test', () => {
     });
 
     describe('start', () => {
+        it('default executor when no annotation is given', () => {
+            executor = new Executor({
+                defaultPlugin: 'example',
+                ecosystem,
+                executor: [
+                    {
+                        name: 'k8s',
+                        options: k8sPluginOptions
+                    },
+                    {
+                        name: 'example',
+                        options: examplePluginOptions
+                    }
+                ]
+            });
+            exampleExecutorMock._start.resolves('exampleExecutorMockResult');
+
+            return executor.start({
+                buildId: 920,
+                container: 'node:4',
+                apiUri: 'http://api.com',
+                token: 'asdf'
+            }).then((result) => {
+                assert.strictEqual(result, 'exampleExecutorMockResult');
+            });
+        });
+
         it('default executor is the first one when given no executor annotation', () => {
             k8sExecutorMock._start.resolves('k8sExecutorResult');
 
