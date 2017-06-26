@@ -55,10 +55,12 @@ describe('index test', () => {
             .returns('api_key');
 
         k8sExecutorMock = {
-            _start: sinon.stub()
+            _start: sinon.stub(),
+            _stop: sinon.stub()
         };
         exampleExecutorMock = {
-            _start: sinon.stub()
+            _start: sinon.stub(),
+            _stop: sinon.stub()
         };
 
         mockery.registerMock('fs', fsMock);
@@ -255,7 +257,7 @@ describe('index test', () => {
         });
     });
 
-    describe('start', () => {
+    describe('_start', () => {
         it('default executor when no annotation is given', () => {
             executor = new Executor({
                 defaultPlugin: 'example',
@@ -349,6 +351,91 @@ describe('index test', () => {
                 container: 'node:4',
                 apiUri: 'http://api.com',
                 token: 'qwer'
+            }).then(assert.fail, (err) => {
+                assert.deepEqual(err, testError);
+            });
+        });
+    });
+
+    describe('_stop', () => {
+        it('default executor when no annotation is given', () => {
+            executor = new Executor({
+                defaultPlugin: 'example',
+                ecosystem,
+                executor: [
+                    {
+                        name: 'k8s',
+                        options: k8sPluginOptions
+                    },
+                    {
+                        name: 'example',
+                        options: examplePluginOptions
+                    }
+                ]
+            });
+            exampleExecutorMock._stop.resolves('exampleExecutorMockResult');
+
+            return executor.stop({
+                buildId: 920
+            }).then((result) => {
+                assert.strictEqual(result, 'exampleExecutorMockResult');
+            });
+        });
+
+        it('default executor is the first one when given no executor annotation', () => {
+            k8sExecutorMock._stop.resolves('k8sExecutorResult');
+
+            return executor.stop({
+                buildId: 920
+            }).then((result) => {
+                assert.strictEqual(result, 'k8sExecutorResult');
+                assert.calledOnce(k8sExecutorMock._stop);
+                assert.notCalled(exampleExecutorMock._stop);
+            });
+        });
+
+        it('default executor is the first one when given an invalid executor annotation', () => {
+            k8sExecutorMock._stop.resolves('k8sExecutorResult');
+            exampleExecutorMock._stop.rejects();
+
+            return executor.stop({
+                annotations: {
+                    'beta.screwdriver.cd/executor': 'darrenIsSometimesRight'
+                },
+                buildId: 920
+            }).then((result) => {
+                assert.strictEqual(result, 'k8sExecutorResult');
+                assert.calledOnce(k8sExecutorMock._stop);
+                assert.notCalled(exampleExecutorMock._stop);
+            });
+        });
+
+        it('uses an annotation to determine which executor to call', () => {
+            k8sExecutorMock._stop.rejects();
+            exampleExecutorMock._stop.resolves('exampleExecutorResult');
+
+            return executor.stop({
+                annotations: {
+                    'beta.screwdriver.cd/executor': 'example'
+                },
+                buildId: 920
+            }).then((result) => {
+                assert.strictEqual(result, 'exampleExecutorResult');
+                assert.calledOnce(exampleExecutorMock._stop);
+                assert.notCalled(k8sExecutorMock._stop);
+            });
+        });
+
+        it('propogates the failure from initiating a start', () => {
+            const testError = new Error('triggeredError');
+
+            k8sExecutorMock._stop.rejects(testError);
+
+            return executor.stop({
+                annotations: {
+                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
+                },
+                buildId: 920
             }).then(assert.fail, (err) => {
                 assert.deepEqual(err, testError);
             });
