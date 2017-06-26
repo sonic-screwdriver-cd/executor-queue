@@ -58,7 +58,7 @@ class ExecutorRouter extends Executor {
 
     /**
      * Starts a new build in an executor
-     * @method start
+     * @method _start
      * @param {Object} config               Configuration
      * @param {Object} [config.annotations] Optional key/value object
      * @param {String} config.apiUri        Screwdriver's API
@@ -67,12 +67,28 @@ class ExecutorRouter extends Executor {
      * @param {String} config.token         JWT to act on behalf of the build
      * @return {Promise}
      */
-    start(config) {
+    _start(config) {
         const annotations = config.annotations || {};
         const executorType = annotations[ANNOTATION_EXECUTOR_TYPE];
         const executor = this[executorType] || this.defaultExecutor; // Route to executor (based on annotations) or use default executor
 
         return executor.start(config);
+    }
+
+    /**
+     * Stop a running or finished build
+     * @method _stop
+     * @param {Object} config               Configuration
+     * @param {Object} [config.annotations] Optional key/value object
+     * @param {String} config.buildId       Unique ID for a build
+     * @return {Promise}
+     */
+    _stop(config) {
+        const annotations = config.annotations || {};
+        const executorType = annotations[ANNOTATION_EXECUTOR_TYPE];
+        const executor = this[executorType] || this.defaultExecutor; // Route to executor (based on annotations) or use default executor
+
+        return executor.stop(config);
     }
 }
 
