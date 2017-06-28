@@ -3,10 +3,42 @@
 
 > A generic executor plugin that routes builds to a specified executor
 
+An executor is an engine that is capable of running a set of docker containers together.
+
+i.e. Jenkins, Kubernetes, ECS, Mesos
+
+The executor router will allow multiple executors to be used in a Screwdriver cluster.
+
 ## Usage
 
 ```bash
 npm install screwdriver-executor-router
+```
+
+### Interface
+
+It will initialize any routers specified in the [default.yaml](https://github.com/screwdriver-cd/screwdriver/blob/master/config/default.yaml#L89-L119) under the `executor` keyword. To specify a default executor plugin, indicate it at the `plugin` keyword. If no default is specified, the first executor defined will be the default.
+
+**Example executor yaml section:**
+```
+executor:
+    plugin: k8s
+    k8s:
+      options:
+        kubernetes:
+            host: kubernetes.default
+            token: sometokenhere
+        launchVersion: stable
+    docker:
+      options:
+        docker: {}
+        launchVersion: stable
+    k8s-vm:
+      options:
+        kubernetes:
+            host: kubernetes.default
+            token: sometokenhere
+        launchVersion: stable
 ```
 
 ## Testing
