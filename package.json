@@ -1,7 +1,7 @@
 {
-  "name": "screwdriver-executor-router",
+  "name": "screwdriver-executor-queue",
   "version": "0.0.1",
-  "description": "A generic plugin for routing builds to specified executors",
+  "description": "Executor plugin for Screwdriver using Resque",
   "main": "index.js",
   "scripts": {
     "pretest": "eslint .",
@@ -10,16 +10,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:screwdriver-cd/executor-router.git"
+    "url": "git@github.com:screwdriver-cd/executor-queue.git"
   },
-  "homepage": "https://github.com/screwdriver-cd/executor-router",
+  "homepage": "https://github.com/screwdriver-cd/executor-queue",
   "bugs": "https://github.com/screwdriver-cd/screwdriver/issues",
   "keywords": [
     "screwdriver",
     "yahoo"
   ],
   "license": "BSD-3-Clause",
-  "author": "Tiffany Kyi <tiffanykyi@gmail.com>",
+  "author": "Ian Fox <ianfox97@gmail.com>",
   "contributors": [
     "Dao Lam <daolam112@gmail.com>",
     "Darren Matsumoto <aeneascorrupt@gmail.com>",
