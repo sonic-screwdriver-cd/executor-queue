@@ -1,0 +1,9 @@
+{
+  "annotations": {
+    "beta.screwdriver.cd/executor": "screwdriver-executor-k8s"
+  },
+  "buildId": 8609,
+  "container": "node:4",
+  "apiUri": "http://api.com",
+  "token": "asdf"
+}
