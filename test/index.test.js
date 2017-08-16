@@ -7,8 +7,10 @@ const assert = chai.assert;
 const mockery = require('mockery');
 const sinon = require('sinon');
 const testConnection = require('./data/testConnection.json');
-const testStartConfig = require('./data/start.json');
-const testStopConfig = require('./data/stop.json');
+const testConfig = require('./data/fullConfig.json');
+const partialTestConfig = {
+    buildId: testConfig.buildId
+};
 
 sinon.assert.expose(chai.assert, { prefix: '' });
 
@@ -31,7 +33,11 @@ describe('index test', () => {
             enqueue: sinon.stub().yieldsAsync(),
             del: sinon.stub().yieldsAsync(null, 1),
             connection: {
-                connected: false
+                connected: false,
+                redis: {
+                    hdel: sinon.stub().yieldsAsync(),
+                    hset: sinon.stub().yieldsAsync()
+                }
             }
         };
         resqueMock = {
@@ -84,6 +90,8 @@ describe('index test', () => {
 
             assert.instanceOf(executor, Executor);
             assert.strictEqual(executor.prefix, 'beta_');
+            assert.strictEqual(executor.buildQueue, 'beta_builds');
+            assert.strictEqual(executor.buildConfigTable, 'beta_buildConfigs');
         });
 
         it('throws when not given a redis connection', () => {
@@ -110,7 +118,7 @@ describe('index test', () => {
             });
         });
 
-        it('enqueues a build', () => executor.start({
+        it('enqueues a build and caches the config', () => executor.start({
             annotations: {
                 'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
             },
@@ -120,7 +128,9 @@ describe('index test', () => {
             token: 'asdf'
         }).then(() => {
             assert.calledOnce(queueMock.connect);
-            assert.calledWith(queueMock.enqueue, 'builds', 'start', [testStartConfig]);
+            assert.calledWith(queueMock.connection.redis.hset, 'buildConfigs', testConfig.buildId,
+                JSON.stringify(testConfig));
+            assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfig]);
         }));
 
         it('doesn\'t call connect if there\'s already a connection', () => {
@@ -136,7 +146,7 @@ describe('index test', () => {
                 token: 'asdf'
             }).then(() => {
                 assert.notCalled(queueMock.connect);
-                assert.calledWith(queueMock.enqueue, 'builds', 'start', [testStartConfig]);
+                assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfig]);
             });
         });
     });
@@ -154,14 +164,12 @@ describe('index test', () => {
             });
         });
 
-        it('removes a start event from the queue', () => executor.stop({
-            annotations: {
-                'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-            },
+        it('removes a start event from the queue and the cached buildconfig', () => executor.stop({
             buildId: 8609
         }).then(() => {
             assert.calledOnce(queueMock.connect);
-            assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
+            assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
+            assert.calledWith(queueMock.connection.redis.hdel, 'buildConfigs', 8609);
             assert.notCalled(queueMock.enqueue);
         }));
 
@@ -169,14 +177,11 @@ describe('index test', () => {
             queueMock.del.yieldsAsync(null, 0);
 
             return executor.stop({
-                annotations: {
-                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-                },
                 buildId: 8609
             }).then(() => {
                 assert.calledOnce(queueMock.connect);
-                assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
-                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [testStopConfig]);
+                assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
+                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [partialTestConfig]);
             });
         });
 
@@ -190,7 +195,7 @@ describe('index test', () => {
                 buildId: 8609
             }).then(() => {
                 assert.notCalled(queueMock.connect);
-                assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
+                assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
             });
         });
     });
