@@ -10,7 +10,8 @@ class ExecutorQueue extends Executor {
      * @method constructor
      * @param  {Object}         config                      Object with executor and ecosystem
      * @param  {Object}         config.redisConnection      Connection details for redis
-     * @param  {Object}         [config.breaker]            optional breaker config
+     * @param  {String}         [config.prefix]             Prefix for queue name
+     * @param  {Object}         [config.breaker]            Optional breaker config
      */
     constructor(config = {}) {
         if (!config.redisConnection) {
@@ -20,6 +21,9 @@ class ExecutorQueue extends Executor {
         const breaker = Object.assign({}, config.breaker || {});
 
         super();
+
+        this.prefix = config.prefix || '';
+        this.buildQueue = `${this.prefix}builds`;
 
         const redisConnection = Object.assign({}, config.redisConnection, { pkg: 'ioredis' });
 
@@ -42,7 +46,7 @@ class ExecutorQueue extends Executor {
     _start(config) {
         return this.breaker.runCommand('connect')
             // Note: arguments to enqueue are [queue name, job type, array of args]
-            .then(() => this.breaker.runCommand('enqueue', 'builds', 'start', [config]));
+            .then(() => this.breaker.runCommand('enqueue', this.buildQueue, 'start', [config]));
     }
 
     /**
@@ -55,7 +59,7 @@ class ExecutorQueue extends Executor {
      */
     _stop(config) {
         return this.breaker.runCommand('connect')
-            .then(() => this.breaker.runCommand('del', 'builds', 'start', [config]))
+            .then(() => this.breaker.runCommand('del', this.buildQueue, 'start', [config]))
             .then((numDeleted) => {
                 if (numDeleted !== 0) {
                     // Build hadn't been started, "start" event was removed from queue
@@ -63,7 +67,7 @@ class ExecutorQueue extends Executor {
                 }
 
                 // "start" event has been processed, need worker to stop the executor
-                return this.breaker.runCommand('enqueue', 'builds', 'stop', [config]);
+                return this.breaker.runCommand('enqueue', this.buildQueue, 'stop', [config]);
             });
     }
 

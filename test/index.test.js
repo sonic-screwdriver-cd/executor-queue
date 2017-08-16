@@ -73,6 +73,16 @@ describe('index test', () => {
             assert.instanceOf(executor, Executor);
         });
 
+        it('takes in a prefix', () => {
+            executor = new Executor({
+                redisConnection: testConnection,
+                prefix: 'beta_'
+            });
+
+            assert.instanceOf(executor, Executor);
+            assert.strictEqual(executor.prefix, 'beta_');
+        });
+
         it('throws when not given a redis connection', () => {
             assert.throws(() => new Executor(), 'No redis connection passed in');
         });
@@ -138,6 +148,7 @@ describe('index test', () => {
         }).then(() => {
             assert.calledOnce(queueMock.connect);
             assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
+            assert.notCalled(queueMock.enqueue);
         }));
 
         it('adds a stop event to the queue if no start events were removed', () => {
