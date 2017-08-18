@@ -29,7 +29,10 @@ describe('index test', () => {
         queueMock = {
             connect: sinon.stub().yieldsAsync(),
             enqueue: sinon.stub().yieldsAsync(),
-            del: sinon.stub().yieldsAsync(null, 1)
+            del: sinon.stub().yieldsAsync(null, 1),
+            connection: {
+                connected: false
+            }
         };
         resqueMock = {
             queue: sinon.stub().returns(queueMock)
@@ -119,11 +122,9 @@ describe('index test', () => {
             assert.calledOnce(queueMock.connect);
             assert.calledWith(queueMock.enqueue, 'builds', 'start', [testStartConfig]);
         }));
-    });
 
-    describe('_stop', () => {
-        it('rejects if it can\'t establish a connection', function () {
-            queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
+        it('doesn\'t call connect if there\'s already a connection', () => {
+            queueMock.connection.connected = true;
 
             return executor.start({
                 annotations: {
@@ -133,6 +134,19 @@ describe('index test', () => {
                 container: 'node:4',
                 apiUri: 'http://api.com',
                 token: 'asdf'
+            }).then(() => {
+                assert.notCalled(queueMock.connect);
+                assert.calledWith(queueMock.enqueue, 'builds', 'start', [testStartConfig]);
+            });
+        });
+    });
+
+    describe('_stop', () => {
+        it('rejects if it can\'t establish a connection', function () {
+            queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
+
+            return executor.stop({
+                buildId: 8609
             }).then(() => {
                 assert.fail('Should not get here');
             }, (err) => {
@@ -163,6 +177,20 @@ describe('index test', () => {
                 assert.calledOnce(queueMock.connect);
                 assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
                 assert.calledWith(queueMock.enqueue, 'builds', 'stop', [testStopConfig]);
+            });
+        });
+
+        it('doesn\'t call connect if there\'s already a connection', () => {
+            queueMock.connection.connected = true;
+
+            return executor.stop({
+                annotations: {
+                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
+                },
+                buildId: 8609
+            }).then(() => {
+                assert.notCalled(queueMock.connect);
+                assert.calledWith(queueMock.del, 'builds', 'start', [testStopConfig]);
             });
         });
     });

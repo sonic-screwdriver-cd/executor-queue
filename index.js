@@ -44,7 +44,7 @@ class ExecutorQueue extends Executor {
      * @return {Promise}
      */
     _start(config) {
-        return this.breaker.runCommand('connect')
+        return this.connect()
             // Note: arguments to enqueue are [queue name, job type, array of args]
             .then(() => this.breaker.runCommand('enqueue', this.buildQueue, 'start', [config]));
     }
@@ -58,7 +58,7 @@ class ExecutorQueue extends Executor {
      * @return {Promise}
      */
     _stop(config) {
-        return this.breaker.runCommand('connect')
+        return this.connect()
             .then(() => this.breaker.runCommand('del', this.buildQueue, 'start', [config]))
             .then((numDeleted) => {
                 if (numDeleted !== 0) {
@@ -69,6 +69,19 @@ class ExecutorQueue extends Executor {
                 // "start" event has been processed, need worker to stop the executor
                 return this.breaker.runCommand('enqueue', this.buildQueue, 'stop', [config]);
             });
+    }
+
+    /**
+     * Connect to the queue if we haven't already
+     * @method connect
+     * @return {Promise}
+     */
+    connect() {
+        if (this.queue.connection.connected) {
+            return Promise.resolve();
+        }
+
+        return this.breaker.runCommand('connect');
     }
 
     /**
