@@ -2,7 +2,9 @@
 
 const Executor = require('screwdriver-executor-base');
 const Resque = require('node-resque');
-const Breaker = require('circuit-fuses').breaker;
+const fuses = require('circuit-fuses');
+const Breaker = fuses.breaker;
+const FuseBox = fuses.box;
 
 class ExecutorQueue extends Executor {
     /**
@@ -24,12 +26,21 @@ class ExecutorQueue extends Executor {
 
         this.prefix = config.prefix || '';
         this.buildQueue = `${this.prefix}builds`;
+        this.buildConfigTable = `${this.prefix}buildConfigs`;
 
         const redisConnection = Object.assign({}, config.redisConnection, { pkg: 'ioredis' });
 
         // eslint-disable-next-line new-cap
         this.queue = new Resque.queue({ connection: redisConnection });
-        this.breaker = new Breaker((funcName, ...args) => this.queue[funcName](...args), breaker);
+        this.queueBreaker = new Breaker((funcName, ...args) =>
+            this.queue[funcName](...args), breaker);
+        this.redisBreaker = new Breaker((funcName, ...args) =>
+            // Use the queue's built-in connection to send redis commands instead of instantiating a new one
+            this.queue.connection.redis[funcName](...args), breaker);
+
+        this.fuseBox = new FuseBox();
+        this.fuseBox.addFuse(this.queueBreaker);
+        this.fuseBox.addFuse(this.redisBreaker);
     }
 
     /**
@@ -45,29 +56,38 @@ class ExecutorQueue extends Executor {
      */
     _start(config) {
         return this.connect()
-            // Note: arguments to enqueue are [queue name, job type, array of args]
-            .then(() => this.breaker.runCommand('enqueue', this.buildQueue, 'start', [config]));
+            // Store the config in redis
+            .then(() => this.redisBreaker.runCommand('hset', this.buildConfigTable,
+                config.buildId, JSON.stringify(config)))
+            // Note: arguments to enqueue are [queue name, job name, array of args]
+            .then(() => this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
+                buildId: config.buildId
+            }]));
     }
 
     /**
      * Stop a running or finished build
      * @method _stop
      * @param {Object} config               Configuration
-     * @param {Object} [config.annotations] Optional key/value object
      * @param {String} config.buildId       Unique ID for a build
      * @return {Promise}
      */
     _stop(config) {
         return this.connect()
-            .then(() => this.breaker.runCommand('del', this.buildQueue, 'start', [config]))
+            .then(() => this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
+                buildId: config.buildId
+            }]))
             .then((numDeleted) => {
                 if (numDeleted !== 0) {
                     // Build hadn't been started, "start" event was removed from queue
-                    return null;
+                    return this.redisBreaker.runCommand('hdel', this.buildConfigTable,
+                        config.buildId);
                 }
 
                 // "start" event has been processed, need worker to stop the executor
-                return this.breaker.runCommand('enqueue', this.buildQueue, 'stop', [config]);
+                return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
+                    buildId: config.buildId
+                }]);
             });
     }
 
@@ -81,7 +101,7 @@ class ExecutorQueue extends Executor {
             return Promise.resolve();
         }
 
-        return this.breaker.runCommand('connect');
+        return this.queueBreaker.runCommand('connect');
     }
 
     /**
@@ -90,7 +110,7 @@ class ExecutorQueue extends Executor {
      * @param {Response} Object     Object containing stats for the executor
      */
     stats() {
-        return this.breaker.stats();
+        return this.queueBreaker.stats();
     }
 }
 
