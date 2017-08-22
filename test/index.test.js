@@ -19,6 +19,8 @@ describe('index test', () => {
     let executor;
     let resqueMock;
     let queueMock;
+    let redisMock;
+    let redisConstructorMock;
 
     before(() => {
         mockery.enable({
@@ -33,18 +35,20 @@ describe('index test', () => {
             enqueue: sinon.stub().yieldsAsync(),
             del: sinon.stub().yieldsAsync(null, 1),
             connection: {
-                connected: false,
-                redis: {
-                    hdel: sinon.stub().yieldsAsync(),
-                    hset: sinon.stub().yieldsAsync()
-                }
+                connected: false
             }
         };
         resqueMock = {
             queue: sinon.stub().returns(queueMock)
         };
+        redisMock = {
+            hdel: sinon.stub().yieldsAsync(),
+            hset: sinon.stub().yieldsAsync()
+        };
+        redisConstructorMock = sinon.stub().returns(redisMock);
 
         mockery.registerMock('node-resque', resqueMock);
+        mockery.registerMock('ioredis', redisConstructorMock);
 
         /* eslint-disable global-require */
         Executor = require('../index');
@@ -128,7 +132,7 @@ describe('index test', () => {
             token: 'asdf'
         }).then(() => {
             assert.calledOnce(queueMock.connect);
-            assert.calledWith(queueMock.connection.redis.hset, 'buildConfigs', testConfig.buildId,
+            assert.calledWith(redisMock.hset, 'buildConfigs', testConfig.buildId,
                 JSON.stringify(testConfig));
             assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfig]);
         }));
@@ -169,7 +173,7 @@ describe('index test', () => {
         }).then(() => {
             assert.calledOnce(queueMock.connect);
             assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
-            assert.calledWith(queueMock.connection.redis.hdel, 'buildConfigs', 8609);
+            assert.calledWith(redisMock.hdel, 'buildConfigs', 8609);
             assert.notCalled(queueMock.enqueue);
         }));
 

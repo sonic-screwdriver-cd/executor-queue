@@ -1,6 +1,7 @@
 'use strict';
 
 const Executor = require('screwdriver-executor-base');
+const Redis = require('ioredis');
 const Resque = require('node-resque');
 const fuses = require('circuit-fuses');
 const Breaker = fuses.breaker;
@@ -30,13 +31,19 @@ class ExecutorQueue extends Executor {
 
         const redisConnection = Object.assign({}, config.redisConnection, { pkg: 'ioredis' });
 
+        this.redis = new Redis(
+            redisConnection.port,
+            redisConnection.host,
+            redisConnection.options
+        );
+
         // eslint-disable-next-line new-cap
         this.queue = new Resque.queue({ connection: redisConnection });
         this.queueBreaker = new Breaker((funcName, ...args) =>
             this.queue[funcName](...args), breaker);
         this.redisBreaker = new Breaker((funcName, ...args) =>
             // Use the queue's built-in connection to send redis commands instead of instantiating a new one
-            this.queue.connection.redis[funcName](...args), breaker);
+            this.redis[funcName](...args), breaker);
 
         this.fuseBox = new FuseBox();
         this.fuseBox.addFuse(this.queueBreaker);
