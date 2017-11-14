@@ -21,12 +21,15 @@ Configuration for any executors must be given directly to the [workers](https://
 ```yaml
 executor:
     plugin: queue
-    options:
-        redisConnection:
-            host: "127.0.0.1"
-            port: 9999
-            password: "hunter2"
-            database: 0
+    queue:
+        options:
+            # Configuration of the redis instance containing resque
+            redisConnection:
+                host: "127.0.0.1"
+                port: 9999
+                options:
+                    password: "hunter2"
+                database: 0
 ```
 
 ## Testing
