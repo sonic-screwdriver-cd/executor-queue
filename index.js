@@ -52,50 +52,51 @@ class ExecutorQueue extends Executor {
 
     /**
      * Starts a new build in an executor
-     * @method _start
-     * @param {Object} config               Configuration
-     * @param {Object} [config.annotations] Optional key/value object
-     * @param {String} config.apiUri        Screwdriver's API
-     * @param {String} config.buildId       Unique ID for a build
-     * @param {String} config.container     Container for the build to run in
-     * @param {String} config.token         JWT to act on behalf of the build
+     * @async  _start
+     * @param  {Object} config               Configuration
+     * @param  {Object} [config.annotations] Optional key/value object
+     * @param  {String} config.apiUri        Screwdriver's API
+     * @param  {String} config.buildId       Unique ID for a build
+     * @param  {String} config.container     Container for the build to run in
+     * @param  {String} config.token         JWT to act on behalf of the build
      * @return {Promise}
      */
-    _start(config) {
-        return this.connect()
-            // Store the config in redis
-            .then(() => this.redisBreaker.runCommand('hset', this.buildConfigTable,
-                config.buildId, JSON.stringify(config)))
-            // Note: arguments to enqueue are [queue name, job name, array of args]
-            .then(() => this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
-                buildId: config.buildId
-            }]));
+    async _start(config) {
+        await this.connect();
+
+        // Store the config in redis
+        await this.redisBreaker.runCommand('hset', this.buildConfigTable,
+            config.buildId, JSON.stringify(config));
+
+        // Note: arguments to enqueue are [queue name, job name, array of args]
+        return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
+            buildId: config.buildId
+        }]);
     }
 
     /**
      * Stop a running or finished build
-     * @method _stop
-     * @param {Object} config               Configuration
-     * @param {String} config.buildId       Unique ID for a build
+     * @async  _stop
+     * @param  {Object} config               Configuration
+     * @param  {String} config.buildId       Unique ID for a build
      * @return {Promise}
      */
-    _stop(config) {
-        return this.connect()
-            .then(() => this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
-                buildId: config.buildId
-            }]))
-            .then((numDeleted) => {
-                if (numDeleted !== 0) {
-                    // Build hadn't been started, "start" event was removed from queue
-                    return this.redisBreaker.runCommand('hdel', this.buildConfigTable,
-                        config.buildId);
-                }
+    async _stop(config) {
+        await this.connect();
 
-                // "start" event has been processed, need worker to stop the executor
-                return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
-                    buildId: config.buildId
-                }]);
-            });
+        const numDeleted = await this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
+            buildId: config.buildId
+        }]);
+
+        if (numDeleted !== 0) {
+            // Build hadn't been started, "start" event was removed from queue
+            return this.redisBreaker.runCommand('hdel', this.buildConfigTable, config.buildId);
+        }
+
+        // "start" event has been processed, need worker to stop the executor
+        return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
+            buildId: config.buildId
+        }]);
     }
 
     /**
