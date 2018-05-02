@@ -1,0 +1,13 @@
+{
+  "id": 1234,
+  "pipelineId": 123,
+  "name": "deploy",
+  "state": "ENABLED",
+  "permutations": [
+      {
+          "annotations": {
+              "screwdriver.cd/buildPeriodically": "* * * * *"
+          }
+      }
+  ]
+}
