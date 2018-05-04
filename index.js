@@ -173,6 +173,7 @@ class ExecutorQueue extends Executor {
                 Authorization: `Bearer ${jwt}`,
                 'Content-Type': 'application/json'
             },
+            json: true,
             body: {
                 pipelineId: pipeline.id,
                 startFrom: job.name
