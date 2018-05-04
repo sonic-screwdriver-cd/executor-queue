@@ -263,12 +263,12 @@ class ExecutorQueue extends Executor {
     async _stopPeriodic(config) {
         await this.connect();
 
-        console.log('QUEUE: stopPeriodic: running delDelayed on queue');
+        console.log('QUEUE: stopPeriodic: running delDelayed on queue: ', config.jobId);
         await this.queueBreaker.runCommand('delDelayed', this.periodicBuildQueue, 'startDelayed', [{
             jobId: config.jobId
         }]);
 
-        console.log('QUEUE: stopPeriodic: running hdel on table');
+        console.log('QUEUE: stopPeriodic: running hdel on table', config.jobId);
 
         return this.redisBreaker.runCommand('hdel', this.periodicBuildTable, config.jobId);
     }
