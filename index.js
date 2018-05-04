@@ -167,7 +167,7 @@ class ExecutorQueue extends Executor {
         console.log('QUEUE postBuildEvent: jwt: ', jwt);
 
         const options = {
-            url: 'https://beta.api.screwdriver.cd/v4/events',
+            url: '/events',
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${jwt}`,
