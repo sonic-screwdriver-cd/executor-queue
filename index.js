@@ -72,8 +72,8 @@ class ExecutorQueue extends Executor {
             startDelayed: Object.assign({ perform: (jobConfig, callback) =>
                 this.redisBreaker.runCommand('hget', this.periodicBuildTable,
                     jobConfig.jobId)
-                    .then(fullConfig => this.startPeriodic(Object.assign(JSON.parse(fullConfig)),
-                        { triggerBuild: true }))
+                    .then(fullConfig => this.startPeriodic(Object.assign(JSON.parse(fullConfig),
+                        { triggerBuild: true })))
                     .then(result => callback(null, result), (err) => {
                         winston.error('err in startDelayed job: ', err);
                         callback(err);
