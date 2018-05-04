@@ -227,7 +227,7 @@ class ExecutorQueue extends Executor {
                 .catch(() => Promise.resolve());
         }
 
-        if (buildCron) {
+        if (buildCron && config.job.state === 'ENABLED' && !config.job.archived) {
             await this.connect();
 
             const next = cron.next(cron.transform(buildCron, config.job.id));

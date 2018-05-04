@@ -215,6 +215,36 @@ describe('index test', () => {
                 assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
             });
         });
+
+        it('stops but does not reEnqueue an existing job if it is disabled', () => {
+            testDelayedConfig.isUpdate = true;
+            testDelayedConfig.job.state = 'DISABLED';
+            testDelayedConfig.job.archived = false;
+            executor.startPeriodic(testDelayedConfig).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.notCalled(redisMock.hset);
+                assert.notCalled(queueMock.enqueueAt);
+                assert.calledWith(queueMock.delDelayed, 'periodicBuilds', 'startDelayed', [{
+                    jobId: testJob.id
+                }]);
+                assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
+            });
+        });
+
+        it('stops but does not reEnqueue an existing job if it is archived', () => {
+            testDelayedConfig.isUpdate = true;
+            testDelayedConfig.job.state = 'ENABLED';
+            testDelayedConfig.job.archived = true;
+            executor.startPeriodic(testDelayedConfig).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.notCalled(redisMock.hset);
+                assert.notCalled(queueMock.enqueueAt);
+                assert.calledWith(queueMock.delDelayed, 'periodicBuilds', 'startDelayed', [{
+                    jobId: testJob.id
+                }]);
+                assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
+            });
+        });
     });
 
     describe('_start', () => {
