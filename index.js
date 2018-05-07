@@ -165,9 +165,6 @@ class ExecutorQueue extends Executor {
     async postBuildEvent({ pipeline, job, apiUri }) {
         const jwt = this.tokenGen(Object.keys(pipeline.admins)[0], {}, pipeline.scmContext);
 
-        console.log('QUEUE postBuildEvent: jwt: ', jwt);
-        console.log('QUEUE postBuildEvent: apiUri: ', apiUri);
-
         const options = {
             url: `${apiUri}/v4/events`,
             method: 'POST',
@@ -183,8 +180,6 @@ class ExecutorQueue extends Executor {
         };
 
         return req(options, (err, response) => {
-            console.log('QUEUE req: err:', JSON.stringify(err));
-            console.log('QUEUE req: response:', JSON.stringify(response));
             if (!err && response.statusCode === 201) {
                 return Promise.resolve(response);
             }
@@ -216,8 +211,6 @@ class ExecutorQueue extends Executor {
         }
 
         if (config.isUpdate) {
-            console.log('QUEUE isUpdate: Stopping periodic job');
-
             // eslint-disable-next-line no-underscore-dangle
             await this._stopPeriodic({
                 jobId: config.job.id
@@ -225,7 +218,6 @@ class ExecutorQueue extends Executor {
         }
 
         if (config.triggerBuild) {
-            console.log('QUEUE triggerBuild: Posting Build Event');
             await this.postBuildEvent(config)
                 .catch(() => Promise.resolve());
         }
@@ -235,15 +227,12 @@ class ExecutorQueue extends Executor {
 
             const next = cron.next(cron.transform(buildCron, config.job.id));
 
-            console.log('QUEUE buildCron: Running hset command on redis table');
             // Store the config in redis
             await this.redisBreaker.runCommand('hset', this.periodicBuildTable,
                 config.job.id, JSON.stringify(Object.assign(config, {
                     isUpdate: false,
                     triggerBuild: false
                 })));
-
-            console.log('QUEUE buildCron: Running enqueueAt on redis queue');
 
             // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
             return this.queueBreaker.runCommand('enqueueAt', next,
@@ -266,12 +255,9 @@ class ExecutorQueue extends Executor {
     async _stopPeriodic(config) {
         await this.connect();
 
-        console.log('QUEUE: stopPeriodic: running delDelayed on queue: ', config.jobId);
         await this.queueBreaker.runCommand('delDelayed', this.periodicBuildQueue, 'startDelayed', [{
             jobId: config.jobId
         }]);
-
-        console.log('QUEUE: stopPeriodic: running hdel on table', config.jobId);
 
         return this.redisBreaker.runCommand('hdel', this.periodicBuildTable, config.jobId);
     }
