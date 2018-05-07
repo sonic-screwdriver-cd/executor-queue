@@ -14,10 +14,11 @@ const testJob = require('./data/testJob.json');
 const partialTestConfig = {
     buildId: testConfig.buildId
 };
-const tokenGen = sinon.stub.returns('123456abc');
+const tokenGen = sinon.stub().returns('123456abc');
 const testDelayedConfig = {
     pipeline: testPipeline,
     job: testJob,
+    apiUri: 'http://localhost',
     tokenGen
 };
 const EventEmitter = require('events').EventEmitter;
@@ -37,6 +38,7 @@ describe('index test', () => {
     let redisConstructorMock;
     let cronMock;
     let winstonMock;
+    let reqMock;
 
     before(() => {
         mockery.enable({
@@ -87,11 +89,13 @@ describe('index test', () => {
             transform: sinon.stub().returns('H H H H H'),
             next: sinon.stub().returns(1500000)
         };
+        reqMock = sinon.stub().resolves();
 
         mockery.registerMock('node-resque', resqueMock);
         mockery.registerMock('ioredis', redisConstructorMock);
         mockery.registerMock('./lib/cron', cronMock);
         mockery.registerMock('winston', winstonMock);
+        mockery.registerMock('request', reqMock);
 
         /* eslint-disable global-require */
         Executor = require('../index');
@@ -243,6 +247,40 @@ describe('index test', () => {
                     jobId: testJob.id
                 }]);
                 assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
+            });
+        });
+
+        it('sends an API event request if triggerBuild is true', () => {
+            testDelayedConfig.isUpdate = true;
+            testDelayedConfig.job.state = 'ENABLED';
+            testDelayedConfig.job.archived = true;
+            testDelayedConfig.triggerBuild = true;
+
+            const options = {
+                url: 'http://localhost/v4/events',
+                method: 'POST',
+                headers: {
+                    Authorization: 'Bearer 123456abc',
+                    'Content-Type': 'application/json'
+                },
+                json: true,
+                body: {
+                    pipelineId: testDelayedConfig.pipeline.id,
+                    startFrom: testDelayedConfig.job.name
+                }
+            };
+
+            executor.tokenGen = tokenGen;
+
+            executor.startPeriodic(testDelayedConfig).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.notCalled(redisMock.hset);
+                assert.notCalled(queueMock.enqueueAt);
+                assert.calledWith(queueMock.delDelayed, 'periodicBuilds', 'startDelayed', [{
+                    jobId: testJob.id
+                }]);
+                assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
+                assert.calledWith(reqMock, options);
             });
         });
     });

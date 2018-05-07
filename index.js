@@ -159,15 +159,17 @@ class ExecutorQueue extends Executor {
      * @param {Object} config          Configuration
      * @param {Object} config.pipeline Pipeline of the job
      * @param {Object} config.job      Job object to create periodic builds for
+     * @param {String} config.apiUri   Base URL of the Screwdriver API
      * @return {Promise}
      */
-    async postBuildEvent({ pipeline, job }) {
+    async postBuildEvent({ pipeline, job, apiUri }) {
         const jwt = this.tokenGen(Object.keys(pipeline.admins)[0], {}, pipeline.scmContext);
 
         console.log('QUEUE postBuildEvent: jwt: ', jwt);
+        console.log('QUEUE postBuildEvent: apiUri: ', apiUri);
 
         const options = {
-            url: '/events',
+            url: `${apiUri}/v4/events`,
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${jwt}`,
@@ -197,6 +199,7 @@ class ExecutorQueue extends Executor {
      * @param {Object}   config              Configuration
      * @param {Object}   config.pipeline     Pipeline of the job
      * @param {Object}   config.job          Job object to create periodic builds for
+     * @param {String}   config.apiUri       Base URL of the Screwdriver API
      * @param {Function} config.tokenGen     Function to generate JWT from username, scope and scmContext
      * @param {Boolean}  config.isUpdate     Boolean to determine if updating existing periodic build
      * @param {Boolean}  config.triggerBuild Flag to post new build event
