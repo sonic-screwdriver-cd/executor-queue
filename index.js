@@ -267,7 +267,9 @@ class ExecutorQueue extends Executor {
      * @async  _start
      * @param  {Object} config               Configuration
      * @param  {Object} [config.annotations] Optional key/value object
+     * @param  {Array}  config.blockedBy     Array of job IDs that this job is blocked by. Always blockedby itself
      * @param  {String} config.apiUri        Screwdriver's API
+     * @param  {String} config.jobId         JobID that this build belongs to
      * @param  {String} config.buildId       Unique ID for a build
      * @param  {String} config.container     Container for the build to run in
      * @param  {String} config.token         JWT to act on behalf of the build
@@ -275,14 +277,17 @@ class ExecutorQueue extends Executor {
      */
     async _start(config) {
         await this.connect();
+        const { buildId, jobId, blockedBy } = config;
 
         // Store the config in redis
         await this.redisBreaker.runCommand('hset', this.buildConfigTable,
-            config.buildId, JSON.stringify(config));
+            buildId, JSON.stringify(config));
 
         // Note: arguments to enqueue are [queue name, job name, array of args]
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
-            buildId: config.buildId
+            buildId,
+            jobId,
+            blockedBy
         }]);
     }
 
@@ -290,24 +295,31 @@ class ExecutorQueue extends Executor {
      * Stop a running or finished build
      * @async  _stop
      * @param  {Object} config               Configuration
+     * @param  {Array}  config.blockedBy     Array of job IDs that this job is blocked by. Always blockedby itself
      * @param  {String} config.buildId       Unique ID for a build
+     * @param  {String} config.jobId         JobID that this build belongs to
      * @return {Promise}
      */
     async _stop(config) {
         await this.connect();
 
+        const { buildId, jobId, blockedBy } = config; // in case config contains something else
         const numDeleted = await this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
-            buildId: config.buildId
+            buildId,
+            jobId,
+            blockedBy
         }]);
 
         if (numDeleted !== 0) {
             // Build hadn't been started, "start" event was removed from queue
-            return this.redisBreaker.runCommand('hdel', this.buildConfigTable, config.buildId);
+            return this.redisBreaker.runCommand('hdel', this.buildConfigTable, buildId);
         }
 
         // "start" event has been processed, need worker to stop the executor
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
-            buildId: config.buildId
+            buildId,
+            jobId,
+            blockedBy
         }]);
     }
 

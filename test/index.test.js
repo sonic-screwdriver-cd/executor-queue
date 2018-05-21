@@ -12,7 +12,9 @@ const testConfig = require('./data/fullConfig.json');
 const testPipeline = require('./data/testPipeline.json');
 const testJob = require('./data/testJob.json');
 const partialTestConfig = {
-    buildId: testConfig.buildId
+    buildId: testConfig.buildId,
+    jobId: testConfig.jobId,
+    blockedBy: testConfig.blockedBy
 };
 const tokenGen = sinon.stub().returns('123456abc');
 const testDelayedConfig = {
@@ -289,30 +291,14 @@ describe('index test', () => {
         it('rejects if it can\'t establish a connection', function () {
             queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
 
-            return executor.start({
-                annotations: {
-                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-                },
-                buildId: 8609,
-                container: 'node:4',
-                apiUri: 'http://api.com',
-                token: 'asdf'
-            }).then(() => {
+            return executor.start(testConfig).then(() => {
                 assert.fail('Should not get here');
             }, (err) => {
                 assert.instanceOf(err, Error);
             });
         });
 
-        it('enqueues a build and caches the config', () => executor.start({
-            annotations: {
-                'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-            },
-            buildId: 8609,
-            container: 'node:4',
-            apiUri: 'http://api.com',
-            token: 'asdf'
-        }).then(() => {
+        it('enqueues a build and caches the config', () => executor.start(testConfig).then(() => {
             assert.calledOnce(queueMock.connect);
             assert.calledWith(redisMock.hset, 'buildConfigs', testConfig.buildId,
                 JSON.stringify(testConfig));
@@ -322,15 +308,7 @@ describe('index test', () => {
         it('doesn\'t call connect if there\'s already a connection', () => {
             queueMock.connection.connected = true;
 
-            return executor.start({
-                annotations: {
-                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-                },
-                buildId: 8609,
-                container: 'node:4',
-                apiUri: 'http://api.com',
-                token: 'asdf'
-            }).then(() => {
+            return executor.start(testConfig).then(() => {
                 assert.notCalled(queueMock.connect);
                 assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfig]);
             });
@@ -341,30 +319,25 @@ describe('index test', () => {
         it('rejects if it can\'t establish a connection', function () {
             queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
 
-            return executor.stop({
-                buildId: 8609
-            }).then(() => {
+            return executor.stop(partialTestConfig).then(() => {
                 assert.fail('Should not get here');
             }, (err) => {
                 assert.instanceOf(err, Error);
             });
         });
 
-        it('removes a start event from the queue and the cached buildconfig', () => executor.stop({
-            buildId: 8609
-        }).then(() => {
-            assert.calledOnce(queueMock.connect);
-            assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
-            assert.calledWith(redisMock.hdel, 'buildConfigs', 8609);
-            assert.notCalled(queueMock.enqueue);
-        }));
+        it('removes a start event from the queue and the cached buildconfig',
+            () => executor.stop(partialTestConfig).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
+                assert.calledWith(redisMock.hdel, 'buildConfigs', 8609);
+                assert.notCalled(queueMock.enqueue);
+            }));
 
         it('adds a stop event to the queue if no start events were removed', () => {
             queueMock.del.yieldsAsync(null, 0);
 
-            return executor.stop({
-                buildId: 8609
-            }).then(() => {
+            return executor.stop(partialTestConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
                 assert.calledWith(queueMock.enqueue, 'builds', 'stop', [partialTestConfig]);
@@ -374,12 +347,9 @@ describe('index test', () => {
         it('doesn\'t call connect if there\'s already a connection', () => {
             queueMock.connection.connected = true;
 
-            return executor.stop({
-                annotations: {
-                    'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
-                },
-                buildId: 8609
-            }).then(() => {
+            return executor.stop(Object.assign({}, partialTestConfig, { annotations: {
+                'beta.screwdriver.cd/executor': 'screwdriver-executor-k8s'
+            } })).then(() => {
                 assert.notCalled(queueMock.connect);
                 assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfig]);
             });
