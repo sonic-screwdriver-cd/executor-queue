@@ -287,7 +287,7 @@ class ExecutorQueue extends Executor {
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
             buildId,
             jobId,
-            blockedBy
+            blockedBy: blockedBy.toString()
         }]);
     }
 
@@ -307,7 +307,7 @@ class ExecutorQueue extends Executor {
         const numDeleted = await this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
             buildId,
             jobId,
-            blockedBy
+            blockedBy: blockedBy.toString()
         }]);
 
         if (numDeleted !== 0) {
@@ -319,7 +319,7 @@ class ExecutorQueue extends Executor {
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
             buildId,
             jobId,
-            blockedBy
+            blockedBy: blockedBy.toString()
         }]);
     }
 
