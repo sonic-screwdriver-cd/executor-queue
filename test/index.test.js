@@ -276,6 +276,12 @@ describe('index test', () => {
 
             executor.tokenGen = tokenGen;
 
+            const adminMock = Promise.resolve({
+                username: 'test'
+            });
+
+            testDelayedConfig.pipeline.admin = adminMock;
+
             executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.notCalled(redisMock.hset);
