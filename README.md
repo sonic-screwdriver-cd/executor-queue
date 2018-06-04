@@ -3,7 +3,7 @@
 
 > An executor plugin that routes builds through a Redis queue
 
-The executor-queue for Screwdriver will push new jobs into a Redis queue. Other executors such as [executor-docker](https://github.com/screwdriver-cd/executor-docker) and [executor-k8s-vm](https://github.com/screwdriver-cd/executor-k8s-vm) will process jobs from this queue.
+The executor-queue for Screwdriver will push new jobs into a Redis queue. Other executors such as [executor-docker](https://github.com/screwdriver-cd/executor-docker),  [executor-k8s](https://github.com/screwdriver-cd/executor-k8s) and [executor-k8s-vm](https://github.com/screwdriver-cd/executor-k8s-vm) will process jobs from this queue.
 
 ## Usage
 
