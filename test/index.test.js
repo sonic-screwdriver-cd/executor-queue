@@ -348,7 +348,7 @@ describe('index test', () => {
                 assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfigToString]);
                 assert.calledWith(redisMock.hdel, 'buildConfigs', buildId);
                 assert.calledWith(redisMock.set, deleteKey, '');
-                assert.calledWith(redisMock.expire, deleteKey, 60);
+                assert.calledWith(redisMock.expire, deleteKey, 1800);
                 assert.notCalled(queueMock.enqueue);
             });
         });
