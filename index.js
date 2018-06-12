@@ -10,6 +10,7 @@ const winston = require('winston');
 const cron = require('./lib/cron');
 const Breaker = fuses.breaker;
 const FuseBox = fuses.box;
+const EXPIRE_TIME = 1800; // 30 mins
 
 class ExecutorQueue extends Executor {
     /**
@@ -309,6 +310,14 @@ class ExecutorQueue extends Executor {
             jobId,
             blockedBy: blockedBy.toString()
         }]);
+        const deleteKey = `deleted_${jobId}_${buildId}`;
+
+        // This is to prevent the case where a build is aborted while still in buildQueue
+        // The job might be picked up by the worker, so it's not deleted from buildQueue here
+        // Immediately after, the job gets put back to the queue, so it's always inside buildQueue
+        // This key will be cleaned up automatically or when it's picked up by the worker
+        await this.redisBreaker.runCommand('set', deleteKey, '');
+        await this.redisBreaker.runCommand('expire', deleteKey, EXPIRE_TIME);
 
         if (numDeleted !== 0) {
             // Build hadn't been started, "start" event was removed from queue
