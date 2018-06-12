@@ -311,6 +311,7 @@ class ExecutorQueue extends Executor {
             blockedBy: blockedBy.toString()
         }]);
         const deleteKey = `deleted_${jobId}_${buildId}`;
+        let started = true;
 
         // This is to prevent the case where a build is aborted while still in buildQueue
         // The job might be picked up by the worker, so it's not deleted from buildQueue here
@@ -319,16 +320,16 @@ class ExecutorQueue extends Executor {
         await this.redisBreaker.runCommand('set', deleteKey, '');
         await this.redisBreaker.runCommand('expire', deleteKey, EXPIRE_TIME);
 
-        if (numDeleted !== 0) {
-            // Build hadn't been started, "start" event was removed from queue
-            return this.redisBreaker.runCommand('hdel', this.buildConfigTable, buildId);
+        if (numDeleted !== 0) { // build hasn't started
+            started = false;
         }
 
         // "start" event has been processed, need worker to stop the executor
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
             buildId,
             jobId,
-            blockedBy: blockedBy.toString()
+            blockedBy: blockedBy.toString(),
+            started // call executor.stop if the job already started
         }]);
     }
 

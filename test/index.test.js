@@ -342,24 +342,25 @@ describe('index test', () => {
 
         it('removes a start event from the queue and the cached buildconfig', () => {
             const deleteKey = `deleted_${jobId}_${buildId}`;
+            const stopConfig = Object.assign({ started: false }, partialTestConfigToString);
 
             return executor.stop(partialTestConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfigToString]);
-                assert.calledWith(redisMock.hdel, 'buildConfigs', buildId);
                 assert.calledWith(redisMock.set, deleteKey, '');
                 assert.calledWith(redisMock.expire, deleteKey, 1800);
-                assert.notCalled(queueMock.enqueue);
+                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [stopConfig]);
             });
         });
 
         it('adds a stop event to the queue if no start events were removed', () => {
             queueMock.del.yieldsAsync(null, 0);
+            const stopConfig = Object.assign({ started: true }, partialTestConfigToString);
 
             return executor.stop(partialTestConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfigToString]);
-                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [partialTestConfigToString]);
+                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [stopConfig]);
             });
         });
 
