@@ -26,6 +26,9 @@ const testDelayedConfig = {
     apiUri: 'http://localhost',
     tokenGen
 };
+const testAdmin = {
+    username: 'admin'
+};
 
 const EventEmitter = require('events').EventEmitter;
 
@@ -45,6 +48,8 @@ describe('index test', () => {
     let cronMock;
     let winstonMock;
     let reqMock;
+    let pipelineMock;
+    let pipelineFactoryMock;
 
     before(() => {
         mockery.enable({
@@ -98,6 +103,12 @@ describe('index test', () => {
             next: sinon.stub().returns(1500000)
         };
         reqMock = sinon.stub().resolves();
+        pipelineMock = {
+            getFirstAdmin: sinon.stub().resolves(testAdmin)
+        };
+        pipelineFactoryMock = {
+            get: sinon.stub().resolves(pipelineMock)
+        };
 
         mockery.registerMock('node-resque', resqueMock);
         mockery.registerMock('ioredis', redisConstructorMock);
@@ -115,7 +126,8 @@ describe('index test', () => {
                 retry: {
                     retries: 1
                 }
-            }
+            },
+            pipelineFactory: pipelineFactoryMock
         });
     });
 
@@ -157,7 +169,8 @@ describe('index test', () => {
 
         it('constructs the executor when no breaker config is passed in', () => {
             executor = new Executor({
-                redisConnection: testConnection
+                redisConnection: testConnection,
+                pipelineFactory: pipelineFactoryMock
             });
 
             assert.instanceOf(executor, Executor);
@@ -166,7 +179,8 @@ describe('index test', () => {
         it('takes in a prefix', () => {
             executor = new Executor({
                 redisConnection: testConnection,
-                prefix: 'beta_'
+                prefix: 'beta_',
+                pipelineFactory: pipelineFactoryMock
             });
 
             assert.instanceOf(executor, Executor);
@@ -177,6 +191,12 @@ describe('index test', () => {
 
         it('throws when not given a redis connection', () => {
             assert.throws(() => new Executor(), 'No redis connection passed in');
+        });
+
+        it('throws when not given a pipelineFactory', () => {
+            assert.throws(() => new Executor({
+                redisConnection: testConnection
+            }));
         });
     });
 

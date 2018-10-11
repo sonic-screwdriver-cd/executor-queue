@@ -18,12 +18,16 @@ class ExecutorQueue extends Executor {
      * @method constructor
      * @param  {Object}         config                      Object with executor and ecosystem
      * @param  {Object}         config.redisConnection      Connection details for redis
+     * @param  {Object}         config.pipelineFactory      Pipeline Factory instance
      * @param  {String}         [config.prefix]             Prefix for queue name
      * @param  {Object}         [config.breaker]            Optional breaker config
      */
     constructor(config = {}) {
         if (!config.redisConnection) {
             throw new Error('No redis connection passed in');
+        }
+        if (!config.pipelineFactory) {
+            throw new Error('No PipelineFactory instance passed in');
         }
 
         const breaker = Object.assign({}, config.breaker || {});
@@ -36,6 +40,7 @@ class ExecutorQueue extends Executor {
         this.buildConfigTable = `${this.prefix}buildConfigs`;
         this.periodicBuildTable = `${this.prefix}periodicBuildConfigs`;
         this.tokenGen = null;
+        this.pipelineFactory = config.pipelineFactory;
 
         const redisConnection = Object.assign({}, config.redisConnection, { pkg: 'ioredis' });
 
@@ -164,7 +169,9 @@ class ExecutorQueue extends Executor {
      * @return {Promise}
      */
     async postBuildEvent({ pipeline, job, apiUri }) {
-        const jwt = this.tokenGen(Object.keys(pipeline.admins)[0], {}, pipeline.scmContext);
+        const pipelineInstance = await this.pipelineFactory.get(pipeline.id);
+        const admin = await pipelineInstance.getFirstAdmin();
+        const jwt = this.tokenGen(admin.username, {}, pipeline.scmContext);
 
         const options = {
             url: `${apiUri}/v4/events`,
