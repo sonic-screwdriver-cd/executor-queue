@@ -311,11 +311,18 @@ class ExecutorQueue extends Executor {
     async _stop(config) {
         await this.connect();
 
-        const { buildId, jobId, blockedBy } = config; // in case config contains something else
+        const { buildId, jobId } = config; // in case config contains something else
+
+        let blockedBy;
+
+        if (config.blockedBy !== undefined) {
+            blockedBy = config.blockedBy.toString();
+        }
+
         const numDeleted = await this.queueBreaker.runCommand('del', this.buildQueue, 'start', [{
             buildId,
             jobId,
-            blockedBy: blockedBy.toString()
+            blockedBy
         }]);
         const deleteKey = `deleted_${jobId}_${buildId}`;
         let started = true;
@@ -331,11 +338,10 @@ class ExecutorQueue extends Executor {
             started = false;
         }
 
-        // "start" event has been processed, need worker to stop the executor
         return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'stop', [{
             buildId,
             jobId,
-            blockedBy: blockedBy.toString(),
+            blockedBy,
             started // call executor.stop if the job already started
         }]);
     }

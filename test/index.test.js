@@ -384,6 +384,19 @@ describe('index test', () => {
             });
         });
 
+        it('adds a stop event to the queue if it has no blocked job', () => {
+            queueMock.del.yieldsAsync(null, 0);
+            const partialTestConfigUndefined = Object.assign({}, partialTestConfig, {
+                blockedBy: undefined });
+            const stopConfig = Object.assign({ started: true }, partialTestConfigUndefined);
+
+            return executor.stop(partialTestConfigUndefined).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.calledWith(queueMock.del, 'builds', 'start', [partialTestConfigUndefined]);
+                assert.calledWith(queueMock.enqueue, 'builds', 'stop', [stopConfig]);
+            });
+        });
+
         it('doesn\'t call connect if there\'s already a connection', () => {
             queueMock.connection.connected = true;
 
