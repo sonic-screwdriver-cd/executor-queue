@@ -49,6 +49,7 @@ describe('index test', () => {
     let winstonMock;
     let reqMock;
     let pipelineMock;
+    let buildMock;
     let pipelineFactoryMock;
 
     before(() => {
@@ -108,6 +109,11 @@ describe('index test', () => {
         };
         pipelineFactoryMock = {
             get: sinon.stub().resolves(pipelineMock)
+        };
+        buildMock = {
+            update: sinon.stub().resolves({
+                id: buildId
+            })
         };
 
         mockery.registerMock('node-resque', resqueMock);
@@ -314,7 +320,7 @@ describe('index test', () => {
     });
 
     describe('_start', () => {
-        it('rejects if it can\'t establish a connection', function () {
+        it('rejects if it can\'t establish a connection', () => {
             queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
 
             return executor.start(testConfig).then(() => {
@@ -324,12 +330,29 @@ describe('index test', () => {
             });
         });
 
-        it('enqueues a build and caches the config', () => executor.start(testConfig).then(() => {
-            assert.calledOnce(queueMock.connect);
-            assert.calledWith(redisMock.hset, 'buildConfigs', buildId,
-                JSON.stringify(testConfig));
-            assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfigToString]);
-        }));
+        it('enqueues a build and caches the config', () => {
+            const dateNow = Date.now();
+            const isoTime = (new Date(dateNow)).toISOString();
+            const sandbox = sinon.sandbox.create({
+                useFakeTimers: false
+            });
+
+            sandbox.useFakeTimers(dateNow);
+            buildMock.stats = {};
+            testConfig.build = buildMock;
+
+            return executor.start(testConfig).then(() => {
+                assert.calledOnce(queueMock.connect);
+                assert.calledWith(redisMock.hset, 'buildConfigs', buildId,
+                    JSON.stringify(testConfig));
+                assert.calledWith(queueMock.enqueue, 'builds', 'start',
+                    [partialTestConfigToString]);
+                assert.calledOnce(buildMock.update);
+                assert.equal(buildMock.stats.queueEnterTime, isoTime);
+                sandbox.restore();
+            });
+        }
+        );
 
         it('enqueues a build and caches the config', () => executor.start(testConfig).then(() => {
             assert.calledOnce(queueMock.connect);

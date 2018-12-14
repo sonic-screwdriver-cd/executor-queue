@@ -275,6 +275,7 @@ class ExecutorQueue extends Executor {
      * @async  _start
      * @param  {Object} config               Configuration
      * @param  {Object} [config.annotations] Optional key/value object
+     * @param  {String} config.build         Build object
      * @param  {Array}  config.blockedBy     Array of job IDs that this job is blocked by. Always blockedby itself
      * @param  {String} config.apiUri        Screwdriver's API
      * @param  {String} config.jobId         JobID that this build belongs to
@@ -285,18 +286,27 @@ class ExecutorQueue extends Executor {
      */
     async _start(config) {
         await this.connect();
-        const { buildId, jobId, blockedBy } = config;
+        const { build, buildId, jobId, blockedBy } = config;
 
+        delete config.build;
         // Store the config in redis
         await this.redisBreaker.runCommand('hset', this.buildConfigTable,
             buildId, JSON.stringify(config));
 
         // Note: arguments to enqueue are [queue name, job name, array of args]
-        return this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
+        const enq = await this.queueBreaker.runCommand('enqueue', this.buildQueue, 'start', [{
             buildId,
             jobId,
             blockedBy: blockedBy.toString()
         }]);
+
+        // for backward compatibility
+        if (build && build.stats) {
+            build.stats.queueEnterTime = (new Date()).toISOString();
+            await build.update();
+        }
+
+        return enq;
     }
 
     /**
