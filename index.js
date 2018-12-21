@@ -302,7 +302,8 @@ class ExecutorQueue extends Executor {
 
         // for backward compatibility
         if (build && build.stats) {
-            build.stats.queueEnterTime = (new Date()).toISOString();
+            // need to reassign so the field can be dirty
+            build.stats = hoek.merge(build.stats, { queueEnterTime: (new Date()).toISOString() });
             await build.update();
         }
 
