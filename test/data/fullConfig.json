@@ -7,5 +7,6 @@
   "container": "node:4",
   "apiUri": "http://api.com",
   "token": "asdf",
-  "blockedBy": [777, 888]
+  "blockedBy": [777, 888],
+  "freezeWindows": ["* * ? * 1", "0-59 0-23 * 1 ?"]
 }

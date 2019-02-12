@@ -46,6 +46,7 @@ describe('index test', () => {
     let redisMock;
     let redisConstructorMock;
     let cronMock;
+    let freezeWindowsMock;
     let winstonMock;
     let reqMock;
     let pipelineMock;
@@ -103,6 +104,9 @@ describe('index test', () => {
             transform: sinon.stub().returns('H H H H H'),
             next: sinon.stub().returns(1500000)
         };
+        freezeWindowsMock = {
+            timeOutOfWindows: (windows, date) => date
+        };
         reqMock = sinon.stub().resolves();
         pipelineMock = {
             getFirstAdmin: sinon.stub().resolves(testAdmin)
@@ -119,6 +123,7 @@ describe('index test', () => {
         mockery.registerMock('node-resque', resqueMock);
         mockery.registerMock('ioredis', redisConstructorMock);
         mockery.registerMock('./lib/cron', cronMock);
+        mockery.registerMock('./lib/freezeWindows', freezeWindowsMock);
         mockery.registerMock('winston', winstonMock);
         mockery.registerMock('request', reqMock);
 
@@ -154,7 +159,7 @@ describe('index test', () => {
         it('constructs the multiWorker', () => {
             const expectedConfig = {
                 connection: testConnection,
-                queues: ['periodicBuilds'],
+                queues: ['periodicBuilds', 'frozenBuilds'],
                 minTaskProcessors: 1,
                 maxTaskProcessors: 10,
                 checkTimeout: 1000,
@@ -342,7 +347,7 @@ describe('index test', () => {
             testConfig.build = buildMock;
 
             return executor.start(testConfig).then(() => {
-                assert.calledOnce(queueMock.connect);
+                assert.calledTwice(queueMock.connect);
                 assert.calledWith(redisMock.hset, 'buildConfigs', buildId,
                     JSON.stringify(testConfig));
                 assert.calledWith(queueMock.enqueue, 'builds', 'start',
@@ -355,7 +360,7 @@ describe('index test', () => {
         );
 
         it('enqueues a build and caches the config', () => executor.start(testConfig).then(() => {
-            assert.calledOnce(queueMock.connect);
+            assert.calledTwice(queueMock.connect);
             assert.calledWith(redisMock.hset, 'buildConfigs', buildId,
                 JSON.stringify(testConfig));
             assert.calledWith(queueMock.enqueue, 'builds', 'start', [partialTestConfigToString]);
@@ -368,6 +373,74 @@ describe('index test', () => {
                 assert.notCalled(queueMock.connect);
                 assert.calledWith(queueMock.enqueue, 'builds', 'start',
                     [partialTestConfigToString]);
+            });
+        });
+    });
+
+    describe('_startFrozen', () => {
+        it('enqueues a delayed job if in freeze window', () => {
+            mockery.resetCache();
+
+            const freezeWindowsMockB = {
+                timeOutOfWindows: (windows, date) => {
+                    date.setUTCMinutes(date.getUTCMinutes() + 1);
+
+                    return date;
+                }
+            };
+
+            mockery.deregisterMock('./lib/freezeWindows');
+            mockery.registerMock('./lib/freezeWindows', freezeWindowsMockB);
+
+            /* eslint-disable global-require */
+            Executor = require('../index');
+            /* eslint-enable global-require */
+
+            executor = new Executor({
+                redisConnection: testConnection,
+                breaker: {
+                    retry: {
+                        retries: 1
+                    }
+                },
+                pipelineFactory: pipelineFactoryMock
+            });
+
+            const dateNow = new Date();
+
+            const sandbox = sinon.sandbox.create({
+                useFakeTimers: false
+            });
+
+            sandbox.useFakeTimers(dateNow.getTime());
+
+            const options = {
+                json: true,
+                method: 'PUT',
+                uri: `http://api.com/v4/builds/${testConfig.buildId}`,
+                body: {
+                    status: 'FROZEN',
+                    statusMessage: sinon.match('Blocked by freeze window, re-enqueued to ')
+                },
+                headers: {
+                    Authorization: 'Bearer asdf',
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            return executor.start(testConfig).then(() => {
+                assert.calledTwice(queueMock.connect);
+                assert.calledWith(queueMock.delDelayed, 'frozenBuilds', 'startFrozen', [{
+                    jobId
+                }]);
+                assert.calledWith(redisMock.hset, 'frozenBuildConfigs', jobId,
+                    JSON.stringify(testConfig));
+                assert.calledWith(queueMock.enqueueAt, dateNow.getTime() + 60000, 'frozenBuilds',
+                    'startFrozen', [{
+                        jobId
+                    }]);
+                assert.calledWith(reqMock, options);
+                sandbox.restore();
             });
         });
     });
