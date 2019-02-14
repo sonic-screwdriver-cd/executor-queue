@@ -3,6 +3,7 @@
     "beta.screwdriver.cd/executor": "screwdriver-executor-k8s"
   },
   "jobId": 777,
+  "jobName": "main",
   "buildId": 8609,
   "container": "node:4",
   "apiUri": "http://api.com",
