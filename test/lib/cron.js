@@ -43,6 +43,11 @@ describe('cron', () => {
         cronExp = '* H(0-5) * * *';
         assert.deepEqual(cron.transform(cronExp, jobId),
             `${minutesHash} ${evaluateHash(jobId, 0, 5)} * * *`);
+
+        // H(0-5) * * * *
+        cronExp = 'H(0-5) * * * *';
+        assert.deepEqual(cron.transform(cronExp, jobId),
+            `${evaluateHash(jobId, 0, 5)} * * * *`);
     });
 
     it('should throw if the cron expression has an invalid range value', () => {
