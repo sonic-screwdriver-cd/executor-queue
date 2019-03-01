@@ -267,7 +267,11 @@ class ExecutorQueue extends Executor {
 
         if (triggerBuild) {
             await this.postBuildEvent(config)
-                .catch(() => Promise.resolve());
+                .catch((err) => {
+                    winston.error(`failed to post build event for job ${job.id}: ${err}`);
+
+                    return Promise.resolve();
+                });
         }
 
         if (buildCron && job.state === 'ENABLED' && !job.archived) {
@@ -285,8 +289,8 @@ class ExecutorQueue extends Executor {
             // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
             return this.queueBreaker.runCommand('enqueueAt', next,
                 this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }])
-                .catch(() => {
-                    winston.error(`failed to add to delayed queue for job ${job.id}`);
+                .catch((err) => {
+                    winston.error(`failed to add to delayed queue for job ${job.id}: ${err}`);
 
                     return Promise.resolve();
                 });
@@ -328,7 +332,11 @@ class ExecutorQueue extends Executor {
         Object.assign(newConfig, config);
 
         return this.postBuildEvent(newConfig)
-            .catch(() => Promise.resolve());
+            .catch((err) => {
+                winston.err(`failed to post build event for job ${config.jobId}: ${err}`);
+
+                return Promise.resolve();
+            });
     }
 
     /**
@@ -396,8 +404,8 @@ class ExecutorQueue extends Executor {
                 apiUri,
                 status: 'FROZEN',
                 statusMessage: `Blocked by freeze window, re-enqueued to ${currentTime}`
-            }).catch(() => {
-                winston.error(`failed to update build status for build ${buildId}`);
+            }).catch((err) => {
+                winston.error(`failed to update build status for build ${buildId}: ${err}`);
 
                 return Promise.resolve();
             });
