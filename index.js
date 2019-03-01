@@ -250,45 +250,50 @@ class ExecutorQueue extends Executor {
      * @return {Promise}
      */
     async _startPeriodic(config) {
+        const { job, tokenGen, isUpdate, triggerBuild } = config;
         // eslint-disable-next-line max-len
-        const buildCron = hoek.reach(config.job, 'permutations>0>annotations>screwdriver.cd/buildPeriodically',
+        const buildCron = hoek.reach(job, 'permutations>0>annotations>screwdriver.cd/buildPeriodically',
             { separator: '>' });
 
         // Save tokenGen to current executor object so we can access it in postBuildEvent
         if (!this.tokenGen) {
-            this.tokenGen = config.tokenGen;
+            this.tokenGen = tokenGen;
         }
 
-        if (config.isUpdate) {
+        if (isUpdate) {
             // eslint-disable-next-line no-underscore-dangle
-            await this._stopPeriodic({
-                jobId: config.job.id
-            });
+            await this._stopPeriodic({ jobId: job.id });
         }
 
-        if (config.triggerBuild) {
+        if (triggerBuild) {
             await this.postBuildEvent(config)
-                .catch(() => Promise.resolve());
+                .catch((err) => {
+                    winston.error(`failed to post build event for job ${job.id}: ${err}`);
+
+                    return Promise.resolve();
+                });
         }
 
-        if (buildCron && config.job.state === 'ENABLED' && !config.job.archived) {
+        if (buildCron && job.state === 'ENABLED' && !job.archived) {
             await this.connect();
 
-            const next = cron.next(cron.transform(buildCron, config.job.id));
+            const next = cron.next(cron.transform(buildCron, job.id));
 
             // Store the config in redis
             await this.redisBreaker.runCommand('hset', this.periodicBuildTable,
-                config.job.id, JSON.stringify(Object.assign(config, {
+                job.id, JSON.stringify(Object.assign(config, {
                     isUpdate: false,
                     triggerBuild: false
                 })));
 
             // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
             return this.queueBreaker.runCommand('enqueueAt', next,
-                this.periodicBuildQueue, 'startDelayed', [{
-                    jobId: config.job.id
-                }])
-                .catch(() => Promise.resolve());
+                this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }])
+                .catch((err) => {
+                    winston.error(`failed to add to delayed queue for job ${job.id}: ${err}`);
+
+                    return Promise.resolve();
+                });
         }
 
         return Promise.resolve();
@@ -327,7 +332,11 @@ class ExecutorQueue extends Executor {
         Object.assign(newConfig, config);
 
         return this.postBuildEvent(newConfig)
-            .catch(() => Promise.resolve());
+            .catch((err) => {
+                winston.err(`failed to post build event for job ${config.jobId}: ${err}`);
+
+                return Promise.resolve();
+            });
     }
 
     /**
@@ -395,7 +404,11 @@ class ExecutorQueue extends Executor {
                 apiUri,
                 status: 'FROZEN',
                 statusMessage: `Blocked by freeze window, re-enqueued to ${currentTime}`
-            }).catch(() => Promise.resolve());
+            }).catch((err) => {
+                winston.error(`failed to update build status for build ${buildId}: ${err}`);
+
+                return Promise.resolve();
+            });
 
             await this.queueBreaker.runCommand('delDelayed', this.frozenBuildQueue,
                 'startFrozen', [{
