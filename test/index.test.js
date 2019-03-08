@@ -52,6 +52,7 @@ describe('index test', () => {
     let pipelineMock;
     let buildMock;
     let pipelineFactoryMock;
+    let fakeResponse;
 
     before(() => {
         mockery.enable({
@@ -107,7 +108,14 @@ describe('index test', () => {
         freezeWindowsMock = {
             timeOutOfWindows: (windows, date) => date
         };
-        reqMock = sinon.stub().resolves();
+
+        fakeResponse = {
+            statusCode: 201,
+            body: {
+                id: '12345'
+            }
+        };
+        reqMock = sinon.stub();
         pipelineMock = {
             getFirstAdmin: sinon.stub().resolves(testAdmin)
         };
@@ -212,6 +220,9 @@ describe('index test', () => {
     });
 
     describe('_startPeriodic', () => {
+        beforeEach(() => {
+            reqMock.yieldsAsync(null, fakeResponse, fakeResponse.body);
+        });
         it('rejects if it can\'t establish a connection', function () {
             queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
 
@@ -230,7 +241,7 @@ describe('index test', () => {
             });
         });
 
-        it('enqueues a new delayed job in the queue', () => {
+        it('enqueues a new delayed job in the queue', () =>
             executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.calledWith(redisMock.hset, 'periodicBuildConfigs', testJob.id,
@@ -240,12 +251,12 @@ describe('index test', () => {
                 assert.calledWith(queueMock.enqueueAt, 1500000, 'periodicBuilds', 'startDelayed', [{
                     jobId: testJob.id
                 }]);
-            });
-        });
+            }));
 
         it('stops and reEnqueues an existing job if isUpdate flag is passed', () => {
             testDelayedConfig.isUpdate = true;
-            executor.startPeriodic(testDelayedConfig).then(() => {
+
+            return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledTwice(queueMock.connect);
                 assert.calledWith(redisMock.hset, 'periodicBuildConfigs', testJob.id,
                     JSON.stringify(testDelayedConfig));
@@ -263,7 +274,8 @@ describe('index test', () => {
             testDelayedConfig.isUpdate = true;
             testDelayedConfig.job.state = 'DISABLED';
             testDelayedConfig.job.archived = false;
-            executor.startPeriodic(testDelayedConfig).then(() => {
+
+            return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.notCalled(redisMock.hset);
                 assert.notCalled(queueMock.enqueueAt);
@@ -278,7 +290,8 @@ describe('index test', () => {
             testDelayedConfig.isUpdate = true;
             testDelayedConfig.job.state = 'ENABLED';
             testDelayedConfig.job.archived = true;
-            executor.startPeriodic(testDelayedConfig).then(() => {
+
+            return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.notCalled(redisMock.hset);
                 assert.notCalled(queueMock.enqueueAt);
@@ -311,7 +324,7 @@ describe('index test', () => {
 
             executor.tokenGen = tokenGen;
 
-            executor.startPeriodic(testDelayedConfig).then(() => {
+            return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.notCalled(redisMock.hset);
                 assert.notCalled(queueMock.enqueueAt);

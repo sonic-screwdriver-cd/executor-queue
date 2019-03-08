@@ -206,12 +206,14 @@ class ExecutorQueue extends Executor {
             options.body.parentEventId = eventId;
         }
 
-        return req(options, (err, response) => {
-            if (!err && response.statusCode === 201) {
-                return Promise.resolve(response);
-            }
+        return new Promise((resolve, reject) => {
+            req(options, (err, response) => {
+                if (!err && response.statusCode === 201) {
+                    return resolve(response);
+                }
 
-            return Promise.reject(err);
+                return reject(err);
+            });
         });
     }
 
@@ -268,7 +270,7 @@ class ExecutorQueue extends Executor {
         }
 
         if (triggerBuild) {
-            await this.postBuildEvent(config)
+            return this.postBuildEvent(config)
                 .catch((err) => {
                     winston.error(`failed to post build event for job ${job.id}: ${err}`);
 
