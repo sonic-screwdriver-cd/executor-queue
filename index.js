@@ -207,9 +207,13 @@ class ExecutorQueue extends Executor {
         }
 
         return new Promise((resolve, reject) => {
-            req(options, (err, response) => {
+            req(options, (err, response, body) => {
                 if (!err && response.statusCode === 201) {
                     return resolve(response);
+                }
+
+                if (body) {
+                    return reject(body);
                 }
 
                 return reject(err);
