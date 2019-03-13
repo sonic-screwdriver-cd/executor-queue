@@ -4,7 +4,7 @@ const Executor = require('screwdriver-executor-base');
 const Redis = require('ioredis');
 const Resque = require('node-resque');
 const fuses = require('circuit-fuses');
-const req = require('request');
+const requestretry = require('requestretry');
 const hoek = require('hoek');
 const winston = require('winston');
 const cron = require('./lib/cron');
@@ -12,6 +12,8 @@ const timeOutOfWindows = require('./lib/freezeWindows').timeOutOfWindows;
 const Breaker = fuses.breaker;
 const FuseBox = fuses.box;
 const EXPIRE_TIME = 1800; // 30 mins
+const RETRY_LIMIT = 3;
+const RETRY_DELAY = 5;
 
 class ExecutorQueue extends Executor {
     /**
@@ -60,13 +62,14 @@ class ExecutorQueue extends Executor {
         this.redisBreaker = new Breaker((funcName, ...args) =>
             // Use the queue's built-in connection to send redis commands instead of instantiating a new one
             this.redis[funcName](...args), breaker);
+        this.requestBreaker = new Breaker(requestretry, config.breaker);
+        this.requestRetryStrategy = (err, response) =>
+            response.statusCode === 201 || response.statusCode === 200;
 
         this.fuseBox = new FuseBox();
         this.fuseBox.addFuse(this.queueBreaker);
         this.fuseBox.addFuse(this.redisBreaker);
 
-        const RETRY_LIMIT = 3;
-        const RETRY_DELAY = 5;
         const retryOptions = {
             plugins: ['retry'],
             pluginOptions: {
@@ -199,26 +202,24 @@ class ExecutorQueue extends Executor {
             body: {
                 pipelineId: pipeline.id,
                 startFrom: job.name
-            }
+            },
+            maxAttempts: RETRY_LIMIT,
+            retryDelay: RETRY_DELAY * 1000, // in ms
+            retryStrategy: this.requestRetryStrategy
         };
 
         if (eventId) {
             options.body.parentEventId = eventId;
         }
 
-        return new Promise((resolve, reject) => {
-            req(options, (err, response, body) => {
-                if (!err && response.statusCode === 201) {
-                    return resolve(response);
+        return this.requestBreaker.runCommand(options)
+            .then((response) => {
+                if (response.statusCode !== 201) {
+                    throw new Error(JSON.stringify(response.body));
                 }
 
-                if (body) {
-                    return reject(body);
-                }
-
-                return reject(err);
+                return null;
             });
-        });
     }
 
     async updateBuildStatus({ buildId, status, statusMessage, token, apiUri }) {
@@ -233,16 +234,20 @@ class ExecutorQueue extends Executor {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            maxAttempts: RETRY_LIMIT,
+            retryDelay: RETRY_DELAY * 1000, // in ms
+            retryStrategy: this.requestRetryStrategy
         };
 
-        return req(options, (err, response) => {
-            if (!err && response.statusCode === 200) {
-                return Promise.resolve(response);
-            }
+        return this.requestBreaker.runCommand(options)
+            .then((response) => {
+                if (response.statusCode !== 200) {
+                    throw new Error(JSON.stringify(response.body));
+                }
 
-            return Promise.reject(err);
-        });
+                return null;
+            });
     }
 
     /**

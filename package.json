@@ -46,7 +46,7 @@
     "hoek": "^5.0.4",
     "ioredis": "^3.2.2",
     "node-resque": "^4.0.9",
-    "request": "^2.88.0",
+    "requestretry": "^3.1.0",
     "screwdriver-data-schema": "^18.44.1",
     "screwdriver-executor-base": "^7.0.0",
     "string-hash": "^1.1.3",

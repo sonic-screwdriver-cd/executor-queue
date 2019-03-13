@@ -133,7 +133,7 @@ describe('index test', () => {
         mockery.registerMock('./lib/cron', cronMock);
         mockery.registerMock('./lib/freezeWindows', freezeWindowsMock);
         mockery.registerMock('winston', winstonMock);
-        mockery.registerMock('request', reqMock);
+        mockery.registerMock('requestretry', reqMock);
 
         /* eslint-disable global-require */
         Executor = require('../index');
@@ -319,7 +319,10 @@ describe('index test', () => {
                 body: {
                     pipelineId: testDelayedConfig.pipeline.id,
                     startFrom: testDelayedConfig.job.name
-                }
+                },
+                maxAttempts: 3,
+                retryDelay: 5000,
+                retryStrategy: executor.requestRetryStrategy
             };
 
             executor.tokenGen = tokenGen;
@@ -332,6 +335,7 @@ describe('index test', () => {
                     jobId: testJob.id
                 }]);
                 assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
+
                 assert.calledWith(reqMock, options);
             });
         });
@@ -393,6 +397,7 @@ describe('index test', () => {
     describe('_startFrozen', () => {
         it('enqueues a delayed job if in freeze window', () => {
             mockery.resetCache();
+            reqMock.yieldsAsync(null, fakeResponse, fakeResponse.body);
 
             const freezeWindowsMockB = {
                 timeOutOfWindows: (windows, date) => {
@@ -438,7 +443,10 @@ describe('index test', () => {
                 headers: {
                     Authorization: 'Bearer asdf',
                     'Content-Type': 'application/json'
-                }
+                },
+                maxAttempts: 3,
+                retryDelay: 5000,
+                retryStrategy: executor.requestRetryStrategy
             };
 
             return executor.start(testConfig).then(() => {
