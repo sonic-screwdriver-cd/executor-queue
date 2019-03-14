@@ -64,7 +64,7 @@ class ExecutorQueue extends Executor {
             this.redis[funcName](...args), breaker);
         this.requestBreaker = new Breaker(requestretry, config.breaker);
         this.requestRetryStrategy = (err, response) =>
-            response.statusCode === 201 || response.statusCode === 200;
+            err || (response.statusCode !== 201 && response.statusCode !== 200);
 
         this.fuseBox = new FuseBox();
         this.fuseBox.addFuse(this.queueBreaker);
