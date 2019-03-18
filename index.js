@@ -45,6 +45,7 @@ class ExecutorQueue extends Executor {
         this.periodicBuildTable = `${this.prefix}periodicBuildConfigs`;
         this.frozenBuildTable = `${this.prefix}frozenBuildConfigs`;
         this.tokenGen = null;
+        this.userTokenGen = null;
         this.pipelineFactory = config.pipelineFactory;
 
         const redisConnection = Object.assign({}, config.redisConnection, { pkg: 'ioredis' });
@@ -186,7 +187,7 @@ class ExecutorQueue extends Executor {
     async postBuildEvent({ pipeline, job, apiUri, eventId }) {
         const pipelineInstance = await this.pipelineFactory.get(pipeline.id);
         const admin = await pipelineInstance.getFirstAdmin();
-        const jwt = this.tokenGen(admin.username, {}, pipeline.scmContext);
+        const jwt = this.userTokenGen(admin.username, {}, pipeline.scmContext);
 
         winston.info(`POST event for pipeline ${pipeline.id}:${job.name}` +
             `using user ${admin.username}`);
@@ -278,8 +279,8 @@ class ExecutorQueue extends Executor {
             { separator: '>' });
 
         // Save tokenGen to current executor object so we can access it in postBuildEvent
-        if (!this.tokenGen) {
-            this.tokenGen = tokenGen;
+        if (!this.userTokenGen) {
+            this.userTokenGen = tokenGen;
         }
 
         if (isUpdate) {

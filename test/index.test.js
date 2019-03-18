@@ -19,12 +19,12 @@ const partialTestConfig = {
 };
 const partialTestConfigToString = Object.assign({}, partialTestConfig, {
     blockedBy: blockedBy.toString() });
-const tokenGen = sinon.stub().returns('123456abc');
+const userTokenGen = sinon.stub().returns('admintoken');
 const testDelayedConfig = {
     pipeline: testPipeline,
     job: testJob,
     apiUri: 'http://localhost',
-    tokenGen
+    tokenGen: userTokenGen
 };
 const testAdmin = {
     username: 'admin'
@@ -312,7 +312,7 @@ describe('index test', () => {
                 url: 'http://localhost/v4/events',
                 method: 'POST',
                 headers: {
-                    Authorization: 'Bearer 123456abc',
+                    Authorization: 'Bearer admintoken',
                     'Content-Type': 'application/json'
                 },
                 json: true,
@@ -325,8 +325,6 @@ describe('index test', () => {
                 retryStrategy: executor.requestRetryStrategy
             };
 
-            executor.tokenGen = tokenGen;
-
             return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledOnce(queueMock.connect);
                 assert.notCalled(redisMock.hset);
@@ -335,7 +333,7 @@ describe('index test', () => {
                     jobId: testJob.id
                 }]);
                 assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
-
+                assert.calledOnce(userTokenGen);
                 assert.calledWith(reqMock, options);
             });
         });
