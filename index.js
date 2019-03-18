@@ -62,9 +62,8 @@ class ExecutorQueue extends Executor {
         this.redisBreaker = new Breaker((funcName, ...args) =>
             // Use the queue's built-in connection to send redis commands instead of instantiating a new one
             this.redis[funcName](...args), breaker);
-        this.requestBreaker = new Breaker(requestretry, config.breaker);
         this.requestRetryStrategy = (err, response) =>
-            err || (response.statusCode !== 201 && response.statusCode !== 200);
+            !!err || (response.statusCode !== 201 && response.statusCode !== 200);
 
         this.fuseBox = new FuseBox();
         this.fuseBox.addFuse(this.queueBreaker);
@@ -212,14 +211,19 @@ class ExecutorQueue extends Executor {
             options.body.parentEventId = eventId;
         }
 
-        return this.requestBreaker.runCommand(options)
-            .then((response) => {
-                if (response.statusCode !== 201) {
-                    throw new Error(JSON.stringify(response.body));
+        return new Promise((resolve, reject) => {
+            requestretry(options, (err, response) => {
+                if (!err && response.statusCode === 201) {
+                    return resolve(response);
                 }
 
-                return null;
+                if (response.statusCode !== 201) {
+                    return reject(JSON.stringify(response.body));
+                }
+
+                return reject(err);
             });
+        });
     }
 
     async updateBuildStatus({ buildId, status, statusMessage, token, apiUri }) {
@@ -240,14 +244,19 @@ class ExecutorQueue extends Executor {
             retryStrategy: this.requestRetryStrategy
         };
 
-        return this.requestBreaker.runCommand(options)
-            .then((response) => {
-                if (response.statusCode !== 200) {
-                    throw new Error(JSON.stringify(response.body));
+        return new Promise((resolve, reject) => {
+            requestretry(options, (err, response) => {
+                if (!err && response.statusCode === 200) {
+                    return resolve(response);
                 }
 
-                return null;
+                if (response.statusCode !== 200) {
+                    return reject(JSON.stringify(response.body));
+                }
+
+                return reject(err);
             });
+        });
     }
 
     /**
