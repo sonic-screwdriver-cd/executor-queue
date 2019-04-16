@@ -184,7 +184,7 @@ class ExecutorQueue extends Executor {
      * @param {String} config.apiUri    Base URL of the Screwdriver API
      * @return {Promise}
      */
-    async postBuildEvent({ pipeline, job, apiUri, eventId }) {
+    async postBuildEvent({ pipeline, job, apiUri, eventId, causeMessage }) {
         const pipelineInstance = await this.pipelineFactory.get(pipeline.id);
         const admin = await pipelineInstance.getFirstAdmin();
         const jwt = this.userTokenGen(admin.username, {}, pipeline.scmContext);
@@ -201,7 +201,12 @@ class ExecutorQueue extends Executor {
             json: true,
             body: {
                 pipelineId: pipeline.id,
-                startFrom: job.name
+                startFrom: job.name,
+                creator: {
+                    name: 'Screwdriver scheduler',
+                    username: 'sd:scheduler'
+                },
+                causeMessage: causeMessage || 'Automatically started by scheduler'
             },
             maxAttempts: RETRY_LIMIT,
             retryDelay: RETRY_DELAY * 1000, // in ms
@@ -289,6 +294,8 @@ class ExecutorQueue extends Executor {
         }
 
         if (triggerBuild) {
+            config.causeMessage = 'Started by periodic build scheduler';
+
             return this.postBuildEvent(config)
                 .catch((err) => {
                     winston.error(`failed to post build event for job ${job.id}: ${err}`);
@@ -349,7 +356,8 @@ class ExecutorQueue extends Executor {
         const newConfig = {
             job: {
                 name: config.jobName
-            }
+            },
+            causeMessage: 'Started by freeze window scheduler'
         };
 
         Object.assign(newConfig, config);
