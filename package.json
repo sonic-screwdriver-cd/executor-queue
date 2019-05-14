@@ -41,7 +41,7 @@
     "sinon": "^4.5.0"
   },
   "dependencies": {
-    "circuit-fuses": "^3.3.0",
+    "circuit-fuses": "^4.0.0",
     "cron-parser": "^2.7.3",
     "hoek": "^5.0.4",
     "ioredis": "^3.2.2",
