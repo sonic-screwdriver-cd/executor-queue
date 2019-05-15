@@ -322,9 +322,10 @@ class ExecutorQueue extends Executor {
 
             // example job: "{\"class\":\"startDelayed\",\"queue\":\"periodicBuilds\",\"args\":[{\"jobId\":212502}]}"
             if (jobs && jobs.length > 0) {
-                const parsedJobs = jobs.maps(j => JSON.parse(j));
+                const parsedJobs = jobs.map(j => JSON.parse(j));
 
-                if (parsedJobs.find(j => j.args[0].jobId === job.id)) {
+                if (parsedJobs.find(j => j.class === 'startDelayed'
+                    && j.args[0].jobId === job.id)) {
                     return Promise.resolve();
                 }
             }
