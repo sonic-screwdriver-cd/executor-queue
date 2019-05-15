@@ -256,6 +256,21 @@ describe('index test', () => {
                 }]);
             }));
 
+        it('do not enqueue the same delayed job in the queue', () => {
+            const job = {
+                class: 'startDelayed',
+                queue: 'periodicBuilds',
+                args: [{ jobId: testJob.id }]
+            };
+
+            redisMock.lrange = sinon.stub().yieldsAsync(null, [JSON.stringify(job)]);
+
+            return executor.startPeriodic(testDelayedConfig).then(() => {
+                assert.calledWith(cronMock.next, 'H H H H H');
+                assert.notCalled(queueMock.enqueueAt);
+            });
+        });
+
         it('stops and reEnqueues an existing job if isUpdate flag is passed', () => {
             testDelayedConfig.isUpdate = true;
 
