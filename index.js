@@ -296,12 +296,12 @@ class ExecutorQueue extends Executor {
         if (triggerBuild) {
             config.causeMessage = 'Started by periodic build scheduler';
 
-            return this.postBuildEvent(config)
-                .catch((err) => {
-                    winston.error(`failed to post build event for job ${job.id}: ${err}`);
-
-                    return Promise.resolve();
-                });
+            // Even if post event failed for this event after retry, we should still enqueue the next event
+            try {
+                await this.postBuildEvent(config);
+            } catch (err) {
+                winston.error(`failed to post build event for job ${job.id}: ${err}`);
+            }
         }
 
         if (buildCron && job.state === 'ENABLED' && !job.archived) {
@@ -315,6 +315,19 @@ class ExecutorQueue extends Executor {
                     isUpdate: false,
                     triggerBuild: false
                 })));
+
+            // If the job already exists, do not re-enqueue
+            const jobs = await this.redisBreaker.runCommand('lrange',
+                `resque:delayed:${next}`, 0, -1);
+
+            // example job: "{\"class\":\"startDelayed\",\"queue\":\"periodicBuilds\",\"args\":[{\"jobId\":212502}]}"
+            if (jobs && jobs.length > 0) {
+                const parsedJobs = jobs.maps(j => JSON.parse(j));
+
+                if (parsedJobs.find(j => j.args[0].jobId === job.id)) {
+                    return Promise.resolve();
+                }
+            }
 
             // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
             return this.queueBreaker.runCommand('enqueueAt', next,

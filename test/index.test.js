@@ -19,13 +19,6 @@ const partialTestConfig = {
 };
 const partialTestConfigToString = Object.assign({}, partialTestConfig, {
     blockedBy: blockedBy.toString() });
-const userTokenGen = sinon.stub().returns('admintoken');
-const testDelayedConfig = {
-    pipeline: testPipeline,
-    job: testJob,
-    apiUri: 'http://localhost',
-    tokenGen: userTokenGen
-};
 const testAdmin = {
     username: 'admin'
 };
@@ -53,6 +46,8 @@ describe('index test', () => {
     let buildMock;
     let pipelineFactoryMock;
     let fakeResponse;
+    let userTokenGen;
+    let testDelayedConfig;
 
     before(() => {
         mockery.enable({
@@ -62,6 +57,13 @@ describe('index test', () => {
     });
 
     beforeEach(() => {
+        userTokenGen = sinon.stub().returns('admintoken');
+        testDelayedConfig = {
+            pipeline: testPipeline,
+            job: testJob,
+            apiUri: 'http://localhost',
+            tokenGen: userTokenGen
+        };
         multiWorker = function () {
             this.start = () => {};
             this.end = sinon.stub();
@@ -98,7 +100,8 @@ describe('index test', () => {
             hdel: sinon.stub().yieldsAsync(),
             hset: sinon.stub().yieldsAsync(),
             set: sinon.stub().yieldsAsync(),
-            expire: sinon.stub().yieldsAsync()
+            expire: sinon.stub().yieldsAsync(),
+            lrange: sinon.stub().yieldsAsync()
         };
         redisConstructorMock = sinon.stub().returns(redisMock);
         cronMock = {
@@ -302,7 +305,7 @@ describe('index test', () => {
             });
         });
 
-        it('sends an API event request if triggerBuild is true', () => {
+        it('trigger build and do not enqueue next job if archived', () => {
             testDelayedConfig.isUpdate = true;
             testDelayedConfig.job.state = 'ENABLED';
             testDelayedConfig.job.archived = true;
@@ -337,6 +340,46 @@ describe('index test', () => {
                 assert.calledWith(redisMock.hdel, 'periodicBuildConfigs', testJob.id);
                 assert.calledOnce(userTokenGen);
                 assert.calledWith(reqMock, options);
+            });
+        });
+
+        it('trigger build and enqueue next job', () => {
+            testDelayedConfig.isUpdate = false;
+            testDelayedConfig.job.state = 'ENABLED';
+            testDelayedConfig.job.archived = false;
+            testDelayedConfig.triggerBuild = true;
+
+            const options = {
+                url: 'http://localhost/v4/events',
+                method: 'POST',
+                headers: {
+                    Authorization: 'Bearer admintoken',
+                    'Content-Type': 'application/json'
+                },
+                json: true,
+                body: {
+                    causeMessage: 'Started by periodic build scheduler',
+                    creator: { name: 'Screwdriver scheduler', username: 'sd:scheduler' },
+                    pipelineId: testDelayedConfig.pipeline.id,
+                    startFrom: testDelayedConfig.job.name
+                },
+                maxAttempts: 3,
+                retryDelay: 5000,
+                retryStrategy: executor.requestRetryStrategy
+            };
+
+            return executor.startPeriodic(testDelayedConfig).then(() => {
+                assert.notCalled(queueMock.delDelayed);
+                assert.calledOnce(userTokenGen);
+                assert.calledWith(reqMock, options);
+                assert.calledOnce(queueMock.connect);
+                assert.calledWith(redisMock.hset, 'periodicBuildConfigs', testJob.id,
+                    JSON.stringify(testDelayedConfig));
+                assert.calledWith(cronMock.transform, '* * * * *', testJob.id);
+                assert.calledWith(cronMock.next, 'H H H H H');
+                assert.calledWith(queueMock.enqueueAt, 1500000, 'periodicBuilds', 'startDelayed', [{
+                    jobId: testJob.id
+                }]);
             });
         });
     });
