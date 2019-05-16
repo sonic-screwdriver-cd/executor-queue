@@ -317,8 +317,9 @@ class ExecutorQueue extends Executor {
                 })));
 
             // If the job already exists, do not re-enqueue
+            // Node-resque store timestamp only to seconds: https://github.com/taskrabbit/node-resque/blob/master/lib/queue.js#L61
             const jobs = await this.redisBreaker.runCommand('lrange',
-                `resque:delayed:${next}`, 0, -1);
+                `resque:delayed:${next / 1000}`, 0, -1);
 
             // example job: "{\"class\":\"startDelayed\",\"queue\":\"periodicBuilds\",\"args\":[{\"jobId\":212502}]}"
             if (jobs && jobs.length > 0) {
