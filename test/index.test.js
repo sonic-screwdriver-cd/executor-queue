@@ -100,8 +100,7 @@ describe('index test', () => {
             hdel: sinon.stub().yieldsAsync(),
             hset: sinon.stub().yieldsAsync(),
             set: sinon.stub().yieldsAsync(),
-            expire: sinon.stub().yieldsAsync(),
-            lrange: sinon.stub().yieldsAsync()
+            expire: sinon.stub().yieldsAsync()
         };
         redisConstructorMock = sinon.stub().returns(redisMock);
         cronMock = {
@@ -257,17 +256,13 @@ describe('index test', () => {
             }));
 
         it('do not enqueue the same delayed job in the queue', () => {
-            const job = {
-                class: 'startDelayed',
-                queue: 'periodicBuilds',
-                args: [{ jobId: testJob.id }]
-            };
+            const err = new Error('Job already enqueued at this time with same arguments');
 
-            redisMock.lrange = sinon.stub().yieldsAsync(null, [JSON.stringify(job)]);
+            queueMock.enqueueAt = sinon.stub().yieldsAsync(err);
 
             return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledWith(cronMock.next, 'H H H H H');
-                assert.notCalled(queueMock.enqueueAt);
+                assert.calledOnce(queueMock.enqueueAt);
             });
         });
 

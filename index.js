@@ -316,29 +316,32 @@ class ExecutorQueue extends Executor {
                     triggerBuild: false
                 })));
 
-            // If the job already exists, do not re-enqueue
-            // Node-resque store timestamp only to seconds: https://github.com/taskrabbit/node-resque/blob/master/lib/queue.js#L61
-            const jobs = await this.redisBreaker.runCommand('lrange',
-                `resque:delayed:${next / 1000}`, 0, -1);
+            // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
+            return new Promise((resolve) => {
+                let shouldRetry = false;
 
-            // example job: "{\"class\":\"startDelayed\",\"queue\":\"periodicBuilds\",\"args\":[{\"jobId\":212502}]}"
-            if (jobs && jobs.length > 0) {
-                const parsedJobs = jobs.map(j => JSON.parse(j));
+                this.queue.enqueueAt(next,
+                    this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }], (err) => {
+                        // Error thrown by node-resque if there is duplicate: https://github.com/taskrabbit/node-resque/blob/master/lib/queue.js#L65
+                        // eslint-disable-next-line max-len
+                        if (err && err.message !== 'Job already enqueued at this time with same arguments') {
+                            shouldRetry = true;
+                        }
+                    });
 
-                if (parsedJobs.find(j => j.class === 'startDelayed'
-                    && j.args[0].jobId === job.id)) {
+                return resolve(shouldRetry);
+            }).then((shouldRetry) => {
+                if (!shouldRetry) {
                     return Promise.resolve();
                 }
-            }
 
-            // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
-            return this.queueBreaker.runCommand('enqueueAt', next,
-                this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }])
-                .catch((err) => {
-                    winston.error(`failed to add to delayed queue for job ${job.id}: ${err}`);
+                return this.queueBreaker.runCommand('enqueueAt', next,
+                    this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }]);
+            }).catch((err) => {
+                winston.error(`failed to add to delayed queue for job ${job.id}: ${err}`);
 
-                    return Promise.resolve();
-                });
+                return Promise.resolve();
+            });
         }
 
         return Promise.resolve();
