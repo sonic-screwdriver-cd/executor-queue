@@ -45,7 +45,7 @@
     "cron-parser": "^2.7.3",
     "hoek": "^5.0.4",
     "ioredis": "^3.2.2",
-    "node-resque": "^4.0.9",
+    "node-resque": "^5.5.3",
     "requestretry": "^3.1.0",
     "screwdriver-data-schema": "^18.45.2",
     "screwdriver-executor-base": "^7.0.0",
