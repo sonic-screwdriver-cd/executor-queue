@@ -86,12 +86,12 @@ describe('index test', () => {
             }
         };
         resqueMock = {
-            queue: sinon.stub().returns(queueMock),
-            multiWorker,
-            scheduler
+            Queue: sinon.stub().returns(queueMock),
+            MultiWorker: multiWorker,
+            Scheduler: scheduler
         };
-        spyMultiWorker = sinon.spy(resqueMock, 'multiWorker');
-        spyScheduler = sinon.spy(resqueMock, 'scheduler');
+        spyMultiWorker = sinon.spy(resqueMock, 'MultiWorker');
+        spyScheduler = sinon.spy(resqueMock, 'Scheduler');
         winstonMock = {
             info: sinon.stub(),
             error: sinon.stub()

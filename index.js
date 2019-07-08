@@ -57,7 +57,7 @@ class ExecutorQueue extends Executor {
         );
 
         // eslint-disable-next-line new-cap
-        this.queue = new Resque.queue({ connection: redisConnection });
+        this.queue = new Resque.Queue({ connection: redisConnection });
         this.queueBreaker = new Breaker((funcName, ...args) =>
             this.queue[funcName](...args), breaker);
         this.redisBreaker = new Breaker((funcName, ...args) =>
@@ -103,7 +103,7 @@ class ExecutorQueue extends Executor {
         };
 
         // eslint-disable-next-line new-cap
-        this.multiWorker = new Resque.multiWorker({
+        this.multiWorker = new Resque.MultiWorker({
             connection: redisConnection,
             queues: [this.periodicBuildQueue, this.frozenBuildQueue],
             minTaskProcessors: 1,
@@ -113,7 +113,7 @@ class ExecutorQueue extends Executor {
             toDisconnectProcessors: true
         }, jobs);
         // eslint-disable-next-line new-cap
-        this.scheduler = new Resque.scheduler({ connection: redisConnection });
+        this.scheduler = new Resque.Scheduler({ connection: redisConnection });
 
         this.multiWorker.on('start', workerId =>
             winston.info(`worker[${workerId}] started`));
@@ -147,9 +147,9 @@ class ExecutorQueue extends Executor {
             winston.info(`scheduler became master ${state}`));
         this.scheduler.on('error', error =>
             winston.info(`scheduler error >> ${error}`));
-        this.scheduler.on('working_timestamp', timestamp =>
+        this.scheduler.on('workingTimestamp', timestamp =>
             winston.info(`scheduler working timestamp ${timestamp}`));
-        this.scheduler.on('transferred_job', (timestamp, job) =>
+        this.scheduler.on('transferredJob', (timestamp, job) =>
             winston.info(`scheduler enqueuing job timestamp  >>  ${JSON.stringify(job)}`));
 
         this.multiWorker.start();
