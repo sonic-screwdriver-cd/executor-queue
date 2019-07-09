@@ -76,11 +76,11 @@ describe('index test', () => {
         util.inherits(multiWorker, EventEmitter);
         util.inherits(scheduler, EventEmitter);
         queueMock = {
-            connect: sinon.stub().yieldsAsync(),
-            enqueue: sinon.stub().yieldsAsync(),
-            enqueueAt: sinon.stub().yieldsAsync(),
-            del: sinon.stub().yieldsAsync(null, 1),
-            delDelayed: sinon.stub().yieldsAsync(null, 1),
+            connect: sinon.stub().resolves(),
+            enqueue: sinon.stub().resolves(),
+            enqueueAt: sinon.stub().resolves(),
+            del: sinon.stub().resolves(1),
+            delDelayed: sinon.stub().resolves(1),
             connection: {
                 connected: false
             }
@@ -226,7 +226,7 @@ describe('index test', () => {
             reqMock.yieldsAsync(null, fakeResponse, fakeResponse.body);
         });
         it('rejects if it can\'t establish a connection', function () {
-            queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
+            queueMock.connect.rejects(new Error('couldn\'t connect'));
 
             return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.fail('Should not get here');
@@ -258,7 +258,7 @@ describe('index test', () => {
         it('do not enqueue the same delayed job in the queue', () => {
             const err = new Error('Job already enqueued at this time with same arguments');
 
-            queueMock.enqueueAt = sinon.stub().yieldsAsync(err);
+            queueMock.enqueueAt = sinon.stub().rejects(err);
 
             return executor.startPeriodic(testDelayedConfig).then(() => {
                 assert.calledWith(cronMock.next, 'H H H H H');
@@ -396,7 +396,7 @@ describe('index test', () => {
 
     describe('_start', () => {
         it('rejects if it can\'t establish a connection', () => {
-            queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
+            queueMock.connect.rejects(new Error('couldn\'t connect'));
 
             return executor.start(testConfig).then(() => {
                 assert.fail('Should not get here');
@@ -521,7 +521,7 @@ describe('index test', () => {
 
     describe('_stop', () => {
         it('rejects if it can\'t establish a connection', function () {
-            queueMock.connect.yieldsAsync(new Error('couldn\'t connect'));
+            queueMock.connect.rejects(new Error('couldn\'t connect'));
 
             return executor.stop(partialTestConfig).then(() => {
                 assert.fail('Should not get here');
@@ -544,7 +544,7 @@ describe('index test', () => {
         });
 
         it('adds a stop event to the queue if no start events were removed', () => {
-            queueMock.del.yieldsAsync(null, 0);
+            queueMock.del.resolves(0);
             const stopConfig = Object.assign({ started: true }, partialTestConfigToString);
 
             return executor.stop(partialTestConfig).then(() => {
@@ -555,7 +555,7 @@ describe('index test', () => {
         });
 
         it('adds a stop event to the queue if it has no blocked job', () => {
-            queueMock.del.yieldsAsync(null, 0);
+            queueMock.del.resolves(0);
             const partialTestConfigUndefined = Object.assign({}, partialTestConfig, {
                 blockedBy: undefined });
             const stopConfig = Object.assign({ started: true }, partialTestConfigUndefined);

@@ -58,8 +58,13 @@ class ExecutorQueue extends Executor {
 
         // eslint-disable-next-line new-cap
         this.queue = new Resque.Queue({ connection: redisConnection });
-        this.queueBreaker = new Breaker((funcName, ...args) =>
-            this.queue[funcName](...args), breaker);
+        this.queueBreaker = new Breaker((funcName, ...args) => {
+            const callback = args.pop();
+
+            this.queue[funcName](...args)
+                .then((...results) => callback(null, ...results))
+                .catch(callback);
+        }, breaker);
         this.redisBreaker = new Breaker((funcName, ...args) =>
             // Use the queue's built-in connection to send redis commands instead of instantiating a new one
             this.redis[funcName](...args), breaker);
