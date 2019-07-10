@@ -78,7 +78,7 @@ class ExecutorQueue extends Executor {
         const retryOptions = {
             plugins: ['Retry'],
             pluginOptions: {
-                retry: {
+                Retry: {
                     retryLimit: RETRY_LIMIT,
                     retryDelay: RETRY_DELAY
                 }
