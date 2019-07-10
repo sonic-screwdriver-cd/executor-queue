@@ -76,9 +76,9 @@ class ExecutorQueue extends Executor {
         this.fuseBox.addFuse(this.redisBreaker);
 
         const retryOptions = {
-            plugins: ['retry'],
+            plugins: ['Retry'],
             pluginOptions: {
-                retry: {
+                Retry: {
                     retryLimit: RETRY_LIMIT,
                     retryDelay: RETRY_DELAY
                 }
