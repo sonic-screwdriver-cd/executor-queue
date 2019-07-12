@@ -57,6 +57,7 @@ class ExecutorQueue extends Executor {
         );
 
         // eslint-disable-next-line new-cap
+        // queue機能を使うためにqueueに代入
         this.queue = new Resque.Queue({ connection: redisConnection });
         this.queueBreaker = new Breaker((funcName, ...args) => {
             const callback = args.pop();
@@ -322,31 +323,28 @@ class ExecutorQueue extends Executor {
                 })));
 
             // Note: arguments to enqueueAt are [timestamp, queue name, job name, array of args]
-            return new Promise((resolve) => {
-                let shouldRetry = false;
+            let shouldRetry = false;
 
-                this.queue.enqueueAt(next,
-                    this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }], (err) => {
-                        // Error thrown by node-resque if there is duplicate: https://github.com/taskrabbit/node-resque/blob/master/lib/queue.js#L65
-                        // eslint-disable-next-line max-len
-                        if (err && err.message !== 'Job already enqueued at this time with same arguments') {
-                            shouldRetry = true;
-                        }
-                    });
-
-                return resolve(shouldRetry);
-            }).then((shouldRetry) => {
+            try {
+                try {
+                    await this.queue.enqueueAt(next, this.periodicBuildQueue,
+                        'startDelayed', [{ jobId: job.id }]);
+                } catch (err) {
+                    // Error thrown by node-resque if there is duplicate: https://github.com/taskrabbit/node-resque/blob/master/lib/queue.js#L65
+                    // eslint-disable-next-line max-len
+                    if (err && err.message !== 'Job already enqueued at this time with same arguments') {
+                        shouldRetry = true;
+                    }
+                }
                 if (!shouldRetry) {
                     return Promise.resolve();
                 }
 
-                return this.queueBreaker.runCommand('enqueueAt', next,
+                await this.queueBreaker.runCommand('enqueueAt', next,
                     this.periodicBuildQueue, 'startDelayed', [{ jobId: job.id }]);
-            }).catch((err) => {
+            } catch (err) {
                 winston.error(`failed to add to delayed queue for job ${job.id}: ${err}`);
-
-                return Promise.resolve();
-            });
+            }
         }
 
         return Promise.resolve();
