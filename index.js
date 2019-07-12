@@ -87,25 +87,29 @@ class ExecutorQueue extends Executor {
         };
         // Jobs object to register the worker with
         const jobs = {
-            startDelayed: Object.assign({ perform: (jobConfig, callback) =>
-                this.redisBreaker.runCommand('hget', this.periodicBuildTable,
-                    jobConfig.jobId)
-                    .then(fullConfig => this.startPeriodic(Object.assign(JSON.parse(fullConfig),
-                        { triggerBuild: true })))
-                    .then(result => callback(null, result), (err) => {
-                        winston.error('err in startDelayed job: ', err);
-                        callback(err);
-                    })
-            }, retryOptions),
-            startFrozen: Object.assign({ perform: (jobConfig, callback) =>
-                this.redisBreaker.runCommand('hget', this.frozenBuildTable,
-                    jobConfig.jobId)
-                    .then(fullConfig => this.startFrozen(JSON.parse(fullConfig)))
-                    .then(result => callback(null, result), (err) => {
-                        winston.error('err in startFrozen job: ', err);
-                        callback(err);
-                    })
-            }, retryOptions)
+            startDelayed: Object.assign({ perform: async (jobConfig) => {
+                try {
+                    const fullConfig = await this.redisBreaker
+                        .runCommand('hget', this.periodicBuildTable, jobConfig.jobId);
+
+                    return await this.startPeriodic(
+                        Object.assign(JSON.parse(fullConfig), { triggerBuild: true }));
+                } catch (err) {
+                    winston.error('err in startDelayed job: ', err);
+                    throw err;
+                }
+            } }, retryOptions),
+            startFrozen: Object.assign({ perform: async (jobConfig) => {
+                try {
+                    const fullConfig = await this.redisBreaker
+                        .runCommand('hget', this.frozenBuildTable, jobConfig.jobId);
+
+                    return await this.startFrozen(JSON.parse(fullConfig));
+                } catch (err) {
+                    winston.error('err in startFrozen job: ', err);
+                    throw err;
+                }
+            } }, retryOptions)
         };
 
         // eslint-disable-next-line new-cap
